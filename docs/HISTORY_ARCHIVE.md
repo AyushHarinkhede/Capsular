@@ -6,3 +6,4 @@
 - **2020-03-10**: feat(service): Implement foreground overlay service lifecycle
 - **2020-03-25**: ui(layout): Optimize translucent WindowManager layout parameters
 - **2020-04-12**: refactor: Decouple event dispatcher from overlay view hierarchy
+- **2020-05-08**: feat(network): Add airplane mode and connectivity state monitors
