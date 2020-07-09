@@ -9,3 +9,4 @@
 - **2020-05-08**: feat(network): Add airplane mode and connectivity state monitors
 - **2020-05-22**: security: Add secure keyguard detection for lock screen behavior
 - **2020-06-14**: feat(call): Intercept phone state broadcast and ring events
+- **2020-07-09**: feat(bluetooth): Add ACL connection broadcast receiver for headsets
