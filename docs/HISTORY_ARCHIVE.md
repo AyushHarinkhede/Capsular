@@ -11,3 +11,4 @@
 - **2020-06-14**: feat(call): Intercept phone state broadcast and ring events
 - **2020-07-09**: feat(bluetooth): Add ACL connection broadcast receiver for headsets
 - **2020-08-18**: feat(notify): Scaffold notification listener service foundation
+- **2020-09-11**: feat(clock): Research chronometer base parsing for background clocks
