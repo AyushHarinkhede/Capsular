@@ -13,3 +13,4 @@
 - **2020-08-18**: feat(notify): Scaffold notification listener service foundation
 - **2020-09-11**: feat(clock): Research chronometer base parsing for background clocks
 - **2020-09-27**: perf: Reduce memory footprint during background idle states
+- **2020-10-16**: test(unit): Add unit test suite for event priority comparator
