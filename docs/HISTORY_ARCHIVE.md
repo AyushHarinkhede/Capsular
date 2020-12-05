@@ -15,3 +15,4 @@
 - **2020-09-27**: perf: Reduce memory footprint during background idle states
 - **2020-10-16**: test(unit): Add unit test suite for event priority comparator
 - **2020-11-12**: feat(record): Add screen and audio recording status detectors
+- **2020-12-05**: ui(animation): Implement early spring bounce on capsule dismiss
