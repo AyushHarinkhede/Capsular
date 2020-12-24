@@ -16,3 +16,4 @@
 - **2020-10-16**: test(unit): Add unit test suite for event priority comparator
 - **2020-11-12**: feat(record): Add screen and audio recording status detectors
 - **2020-12-05**: ui(animation): Implement early spring bounce on capsule dismiss
+- **2020-12-24**: chore: End of year 2020 stability maintenance and cleanup
