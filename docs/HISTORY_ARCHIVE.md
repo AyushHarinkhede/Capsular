@@ -21,3 +21,4 @@
 - **2021-01-29**: feat(music): Implement MediaSessionManager active sessions listener
 - **2021-02-11**: ui(media): Add album artwork bitmap decoding and rounded display
 - **2021-03-08**: feat(audio): Integrate Visualizer API for live audio waveform bars
+- **2021-03-24**: feat(sound): Add system audio profile ringer mode detection
