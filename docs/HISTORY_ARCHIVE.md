@@ -23,3 +23,4 @@
 - **2021-03-08**: feat(audio): Integrate Visualizer API for live audio waveform bars
 - **2021-03-24**: feat(sound): Add system audio profile ringer mode detection
 - **2021-04-15**: feat(torch): Add CameraManager flash torch mode callback
+- **2021-05-07**: feat(nav): Intercept Google Maps navigation instructions
