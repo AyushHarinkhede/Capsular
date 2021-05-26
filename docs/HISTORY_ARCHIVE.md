@@ -24,3 +24,4 @@
 - **2021-03-24**: feat(sound): Add system audio profile ringer mode detection
 - **2021-04-15**: feat(torch): Add CameraManager flash torch mode callback
 - **2021-05-07**: feat(nav): Intercept Google Maps navigation instructions
+- **2021-05-26**: feat(download): Add Notification progress bar percentage tracking
