@@ -25,3 +25,4 @@
 - **2021-04-15**: feat(torch): Add CameraManager flash torch mode callback
 - **2021-05-07**: feat(nav): Intercept Google Maps navigation instructions
 - **2021-05-26**: feat(download): Add Notification progress bar percentage tracking
+- **2021-06-12**: feat(haptics): Initial Vibrator service integration for button clicks
