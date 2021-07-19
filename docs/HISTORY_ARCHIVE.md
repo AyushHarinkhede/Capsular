@@ -26,3 +26,4 @@
 - **2021-05-07**: feat(nav): Intercept Google Maps navigation instructions
 - **2021-05-26**: feat(download): Add Notification progress bar percentage tracking
 - **2021-06-12**: feat(haptics): Initial Vibrator service integration for button clicks
+- **2021-07-19**: fix(overlay): Handle Android 11 package visibility restrictions
