@@ -28,3 +28,4 @@
 - **2021-06-12**: feat(haptics): Initial Vibrator service integration for button clicks
 - **2021-07-19**: fix(overlay): Handle Android 11 package visibility restrictions
 - **2021-08-10**: feat(calibration): Add interactive notch position calibrator sliders
+- **2021-09-14**: feat(settings): Store custom width, height, and offset in preferences
