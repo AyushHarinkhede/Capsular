@@ -30,3 +30,4 @@
 - **2021-08-10**: feat(calibration): Add interactive notch position calibrator sliders
 - **2021-09-14**: feat(settings): Store custom width, height, and offset in preferences
 - **2021-10-09**: feat(reply): Add inline notification reply support via RemoteInput
+- **2021-11-16**: feat(split): Prototype double capsule split circle architecture
