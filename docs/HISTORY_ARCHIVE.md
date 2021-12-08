@@ -31,3 +31,4 @@
 - **2021-09-14**: feat(settings): Store custom width, height, and offset in preferences
 - **2021-10-09**: feat(reply): Add inline notification reply support via RemoteInput
 - **2021-11-16**: feat(split): Prototype double capsule split circle architecture
+- **2021-12-08**: ui(theme): Prepare Material 3 color tokens integration
