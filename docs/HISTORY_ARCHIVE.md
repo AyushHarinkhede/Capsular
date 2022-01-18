@@ -33,3 +33,4 @@
 - **2021-11-16**: feat(split): Prototype double capsule split circle architecture
 - **2021-12-08**: ui(theme): Prepare Material 3 color tokens integration
 - **2021-12-28**: chore: End of year 2021 milestone and performance audit
+- **2022-01-18**: ui(compose): Full migration of overlay hierarchy to Jetpack Compose
