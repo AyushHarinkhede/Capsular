@@ -35,3 +35,4 @@
 - **2021-12-28**: chore: End of year 2021 milestone and performance audit
 - **2022-01-18**: ui(compose): Full migration of overlay hierarchy to Jetpack Compose
 - **2022-02-14**: feat(ux): Add intuitive swipe gestures for capsule expand and hide
+- **2022-03-11**: feat(morph): Implement Apple-style organic morphing curves from notch
