@@ -37,3 +37,4 @@
 - **2022-02-14**: feat(ux): Add intuitive swipe gestures for capsule expand and hide
 - **2022-03-11**: feat(morph): Implement Apple-style organic morphing curves from notch
 - **2022-04-06**: feat(fitness): Add hourly water and step tracker progress capsules
+- **2022-04-25**: feat(delivery): Add live tracking state for food and ride deliveries
