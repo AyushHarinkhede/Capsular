@@ -39,3 +39,4 @@
 - **2022-04-06**: feat(fitness): Add hourly water and step tracker progress capsules
 - **2022-04-25**: feat(delivery): Add live tracking state for food and ride deliveries
 - **2022-05-15**: feat(alarm): Add active alarm firing and dismiss overlay card
+- **2022-06-09**: feat(calendar): Add upcoming calendar events reminder capsule
