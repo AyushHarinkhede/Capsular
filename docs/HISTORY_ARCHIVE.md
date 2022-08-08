@@ -41,3 +41,4 @@
 - **2022-05-15**: feat(alarm): Add active alarm firing and dismiss overlay card
 - **2022-06-09**: feat(calendar): Add upcoming calendar events reminder capsule
 - **2022-07-14**: feat(weather): Add dynamic local weather temperature indicator
+- **2022-08-08**: fix(lifecycle): Stabilize Service ComposeView ViewTreeOwners
