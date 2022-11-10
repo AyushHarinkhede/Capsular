@@ -45,3 +45,4 @@
 - **2022-09-12**: feat(island): Match Apple Dynamic Island dual expansion physics
 - **2022-09-29**: feat(animation): Add spring physics with smooth damping ratios
 - **2022-10-18**: perf: Eliminate unnecessary Compose recompositions in overlay
+- **2022-11-10**: feat(hotspot): Add active mobile hotspot connection counter
