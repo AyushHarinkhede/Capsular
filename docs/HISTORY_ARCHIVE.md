@@ -48,3 +48,4 @@
 - **2022-11-10**: feat(hotspot): Add active mobile hotspot connection counter
 - **2022-12-14**: ui(notch): Support top-center punch-hole camera physical alignment
 - **2022-12-30**: chore: End of year 2022 release and architecture milestone
+- **2023-01-16**: feat(you): Integrate Material You dynamic wallpaper tones (API 31+)
