@@ -50,3 +50,4 @@
 - **2022-12-30**: chore: End of year 2022 release and architecture milestone
 - **2023-01-16**: feat(you): Integrate Material You dynamic wallpaper tones (API 31+)
 - **2023-02-12**: feat(quickshare): Add Quick Share and Nearby Share transfer cards
+- **2023-03-09**: feat(accessibility): Add notification shade swipe-down trigger
