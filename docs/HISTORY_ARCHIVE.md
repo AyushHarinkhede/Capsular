@@ -54,3 +54,4 @@
 - **2023-04-14**: feat(nfc): Add NFC tag dispatch and instant simulation triggers
 - **2023-05-11**: feat(fgs): Update Foreground Service types for Android 14 compliance
 - **2023-05-28**: feat(power): Add low battery warning alert with custom haptic cue
+- **2023-06-15**: feat(simulator): Add interactive Mock Capsule test laboratory
