@@ -55,3 +55,4 @@
 - **2023-05-11**: feat(fgs): Update Foreground Service types for Android 14 compliance
 - **2023-05-28**: feat(power): Add low battery warning alert with custom haptic cue
 - **2023-06-15**: feat(simulator): Add interactive Mock Capsule test laboratory
+- **2023-07-10**: feat(audio): Expand Bluetooth codec and battery level reporting
