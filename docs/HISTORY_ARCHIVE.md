@@ -56,3 +56,4 @@
 - **2023-05-28**: feat(power): Add low battery warning alert with custom haptic cue
 - **2023-06-15**: feat(simulator): Add interactive Mock Capsule test laboratory
 - **2023-07-10**: feat(audio): Expand Bluetooth codec and battery level reporting
+- **2023-08-18**: feat(intensity): Add hardware flashlight brightness level slider
