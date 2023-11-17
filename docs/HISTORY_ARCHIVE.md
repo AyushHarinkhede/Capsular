@@ -59,3 +59,4 @@
 - **2023-08-18**: feat(intensity): Add hardware flashlight brightness level slider
 - **2023-09-07**: fix(window): Prevent touch interception when capsule is hidden
 - **2023-10-12**: perf: Cache bitmap thumbnails for low memory footprint
+- **2023-11-17**: ui(pill): Optimize border curves and punch-hole emergence
