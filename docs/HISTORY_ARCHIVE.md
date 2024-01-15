@@ -62,3 +62,4 @@
 - **2023-11-17**: ui(pill): Optimize border curves and punch-hole emergence
 - **2023-12-11**: refactor: Modernize CapsuleStateManager StateFlow pipelines
 - **2023-12-29**: chore: End of year 2023 release notes and version bump
+- **2024-01-15**: feat(theme): Implement Pure Black AMOLED background
