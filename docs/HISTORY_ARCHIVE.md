@@ -64,3 +64,4 @@
 - **2023-12-29**: chore: End of year 2023 release notes and version bump
 - **2024-01-15**: feat(theme): Implement Pure Black AMOLED background
 - **2024-02-10**: feat(theme): Implement Pure White light theme styling
+- **2024-02-26**: ui(switch): Upgrade toggle switches with Pixel UI animated thumbs
