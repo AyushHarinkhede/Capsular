@@ -65,3 +65,4 @@
 - **2024-01-15**: feat(theme): Implement Pure Black AMOLED background
 - **2024-02-10**: feat(theme): Implement Pure White light theme styling
 - **2024-02-26**: ui(switch): Upgrade toggle switches with Pixel UI animated thumbs
+- **2024-03-12**: feat(haptics): Implement Android 12+ VibrationEffect composition
