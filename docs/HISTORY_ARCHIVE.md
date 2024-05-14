@@ -67,3 +67,4 @@
 - **2024-02-26**: ui(switch): Upgrade toggle switches with Pixel UI animated thumbs
 - **2024-03-12**: feat(haptics): Implement Android 12+ VibrationEffect composition
 - **2024-04-08**: feat(audio): Integrate native AudioManager system sound effects
+- **2024-05-14**: feat(tone): Add Google Pixel style ambient chime cues
