@@ -74,3 +74,4 @@
 - **2024-09-10**: feat(torch): Deep sync with hardware CameraManager torch callback
 - **2024-10-12**: feat(volume): Add hardware volume rocker synchronization
 - **2024-11-15**: feat(emerge): Apple Dynamic Island camera emergence animation
+- **2024-12-10**: feat(split): Independent right-side split bubble animation
