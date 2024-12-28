@@ -75,3 +75,4 @@
 - **2024-10-12**: feat(volume): Add hardware volume rocker synchronization
 - **2024-11-15**: feat(emerge): Apple Dynamic Island camera emergence animation
 - **2024-12-10**: feat(split): Independent right-side split bubble animation
+- **2024-12-28**: release(v2.0): Milestone release with complete sensory feedback
