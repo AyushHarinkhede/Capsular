@@ -1,4 +1,4 @@
-﻿package com.example.capsulebar.ui.main
+package com.example.capsulebar.ui.main
 
 import android.app.ActivityManager
 import android.content.Context
@@ -16,6 +16,7 @@ import com.example.capsulebar.data.CapsuleEvent
 import com.example.capsulebar.data.CapsuleSettings
 import com.example.capsulebar.data.CapsuleStateManager
 import com.example.capsulebar.service.CapsuleBarService
+import com.example.capsulebar.util.FlashlightController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -34,6 +35,15 @@ class MainScreenViewModel(context: Context) : ViewModel() {
 
     private val _isRecordAudioPermissionGranted = MutableStateFlow(false)
     val isRecordAudioPermissionGranted: StateFlow<Boolean> = _isRecordAudioPermissionGranted.asStateFlow()
+
+    private val _isAccessibilityPermissionGranted = MutableStateFlow(false)
+    val isAccessibilityPermissionGranted: StateFlow<Boolean> = _isAccessibilityPermissionGranted.asStateFlow()
+
+    private val _isCalendarPermissionGranted = MutableStateFlow(false)
+    val isCalendarPermissionGranted: StateFlow<Boolean> = _isCalendarPermissionGranted.asStateFlow()
+
+    private val _isLocationPermissionGranted = MutableStateFlow(false)
+    val isLocationPermissionGranted: StateFlow<Boolean> = _isLocationPermissionGranted.asStateFlow()
 
     private val _isServiceRunning = MutableStateFlow(false)
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
@@ -255,6 +265,32 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             appContext,
             android.Manifest.permission.RECORD_AUDIO
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        // Accessibility Service Check
+        val accessibilityService = "${appContext.packageName}/com.example.capsulebar.service.CapsuleAccessibilityService"
+        var accessibilityEnabled = false
+        try {
+            val enabledServices = Settings.Secure.getString(
+                appContext.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: ""
+            accessibilityEnabled = enabledServices.contains(accessibilityService)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        _isAccessibilityPermissionGranted.value = accessibilityEnabled
+
+        // Calendar Read Permission Check
+        _isCalendarPermissionGranted.value = androidx.core.content.ContextCompat.checkSelfPermission(
+            appContext,
+            android.Manifest.permission.READ_CALENDAR
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        // Location Check (for weather)
+        _isLocationPermissionGranted.value = androidx.core.content.ContextCompat.checkSelfPermission(
+            appContext,
+            android.Manifest.permission.ACCESS_FINE_LOCATION
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
     fun checkServiceStatus() {
@@ -407,26 +443,26 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     fun triggerMockFaceID(success: Boolean) {
         CapsuleStateManager.postEvent(
             CapsuleEvent.Authentication(
-                label = "Face ID",
+                label = "Biometric Unlock",
                 success = success
             )
         )
     }
 
-    fun triggerMockApplePay() {
+    fun triggerMockMobilePay() {
         CapsuleStateManager.postEvent(
             CapsuleEvent.Authentication(
-                label = "Apple Pay",
+                label = "Secure Mobile Pay",
                 success = true
             )
         )
     }
 
-    fun triggerMockAirDrop() {
+    fun triggerMockQuickShare() {
         CapsuleStateManager.postEvent(
             CapsuleEvent.Progress(
-                id = "airdrop",
-                title = "AirDrop from iPhone",
+                id = "quickshare",
+                title = "File Transfer via Quick Share",
                 progress = 65,
                 max = 100
             )
@@ -489,7 +525,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
         )
     }
 
-    fun triggerMockUberOla(appName: String, minsText: String, progress: Float) {
+    fun triggerMockRideSharing(appName: String, minsText: String, progress: Float) {
         CapsuleStateManager.postEvent(
             CapsuleEvent.Delivery(
                 id = "ride",
@@ -500,7 +536,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
         )
     }
 
-    fun triggerMockZomatoSwiggy(appName: String, status: String, progress: Float) {
+    fun triggerMockFoodDelivery(appName: String, status: String, progress: Float) {
         CapsuleStateManager.postEvent(
             CapsuleEvent.Delivery(
                 id = "food",
@@ -512,27 +548,40 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     }
 
     fun triggerMockSystemToggle(name: String, enabled: Boolean) {
-        // Flashlight gets special high-priority (750) to sit between Recording and SoundProfile
-        val priorityValue = if (name.equals("Flashlight", ignoreCase = true)) 750 else 400
-        CapsuleStateManager.postEvent(
-            CapsuleEvent.SystemToggle(
-                id = "toggle_${name.lowercase().replace(" ", "_")}",
-                name = name,
-                isEnabled = enabled,
-                priority = priorityValue
+        val id = "toggle_${name.lowercase().replace(" ", "_")}"
+        val isCurrentlyActive = CapsuleStateManager.isEventActive(id)
+        if (isCurrentlyActive) {
+            CapsuleStateManager.removeEvent(id)
+            if (name.equals("Flashlight", ignoreCase = true)) {
+                FlashlightController.turnOff(appContext)
+            }
+        } else {
+            val priorityValue = if (name.equals("Flashlight", ignoreCase = true)) 750 else 400
+            val duration = if (name.equals("Flashlight", ignoreCase = true)) 0L else 2500L
+            CapsuleStateManager.postEvent(
+                CapsuleEvent.SystemToggle(
+                    id = id,
+                    name = name,
+                    isEnabled = true,
+                    priority = priorityValue,
+                    durationMs = duration
+                )
             )
-        )
+            if (name.equals("Flashlight", ignoreCase = true)) {
+                FlashlightController.turnOn(appContext, FlashlightController.intensityFlow.value)
+            }
+        }
     }
 
     fun triggerMockMusicPlayback() {
         CapsuleStateManager.postEvent(
             CapsuleEvent.Music(
-                title = "Blinding Lights",
-                artist = "The Weeknd",
+                title = "Acoustic Melody",
+                artist = "Talented Musician",
                 isPlaying = true,
                 duration = 200000L,
                 position = 45000L,
-                packageName = "com.spotify.music"
+                packageName = "com.generic.musicplayer"
             )
         )
     }
@@ -579,45 +628,74 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     }
 
     fun triggerMockNotification() {
-        val whatsappPackage = "com.whatsapp"
-        var appIcon: Bitmap? = null
-        var appLabel = "WhatsApp"
-        try {
-            val pm = appContext.packageManager
-            val appInfo = pm.getApplicationInfo(whatsappPackage, 0)
-            appLabel = pm.getApplicationLabel(appInfo).toString()
-            val drawable = pm.getApplicationIcon(appInfo)
-            
-            if (drawable is BitmapDrawable) {
-                appIcon = drawable.bitmap
-            } else {
-                val bitmap = if (drawable.intrinsicWidth <= 0 || drawable.intrinsicHeight <= 0) {
-                    Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-                } else {
-                    Bitmap.createBitmap(drawable.intrinsicWidth, drawable.intrinsicHeight, Bitmap.Config.ARGB_8888)
-                }
-                val canvas = Canvas(bitmap)
-                drawable.setBounds(0, 0, canvas.width, canvas.height)
-                drawable.draw(canvas)
-                appIcon = bitmap
-            }
-        } catch (e: Exception) {
-            // WhatsApp is not installed
-        }
-        
         CapsuleStateManager.postEvent(
             CapsuleEvent.Notification(
-                id = "notification_mock_whatsapp",
-                packageName = whatsappPackage,
-                appName = appLabel,
-                title = "Ayush",
-                text = "Hey, check out this new Capsular animation! It looks awesome! ðŸ”¥",
-                appIcon = appIcon
+                id = "notification_mock_chat",
+                packageName = "com.generic.chat",
+                appName = "Chat App",
+                title = "Friend",
+                text = "Hey, check out this new Capsular animation! It looks awesome! 🔥",
+                appIcon = null
             )
         )
     }
 
+    fun triggerMockHourlyTrackerSteps() {
+        CapsuleStateManager.postEvent(
+            CapsuleEvent.HourlyTracker(
+                id = "tracker_steps",
+                trackerName = "Hourly Steps",
+                countText = "4,500 / 6,000 Steps",
+                progress = 0.75f
+            )
+        )
+    }
+
+    fun triggerMockHourlyTrackerWater() {
+        CapsuleStateManager.postEvent(
+            CapsuleEvent.HourlyTracker(
+                id = "tracker_water",
+                trackerName = "Hourly Water Intake",
+                countText = "3 / 8 Glasses (600ml)",
+                progress = 0.375f
+            )
+        )
+    }
+
+    fun triggerMockCalendarEvent() {
+        CapsuleStateManager.postEvent(
+            CapsuleEvent.CalendarEvent(
+                title = "Project Sync Meeting",
+                timeText = "11:30 AM - 12:00 PM",
+                location = "Conference Room A"
+            )
+        )
+    }
+
+    fun triggerMockWeather() {
+        CapsuleStateManager.postEvent(
+            CapsuleEvent.Weather(
+                tempText = "24°C",
+                condition = "Partly Cloudy"
+            )
+        )
+    }
+
+    fun triggerMockAlarm() {
+        CapsuleStateManager.postEvent(
+            CapsuleEvent.Alarm(
+                id = "alarm_mock",
+                timeText = "07:30 AM",
+                label = "Morning Alarm",
+                isFiring = true
+            )
+        )
+    }
+
+
     fun clearEvents() {
+        // Also turn off flashlight when clearing all events
+        FlashlightController.turnOff(appContext)
         CapsuleStateManager.clearAllEvents()
     }
 

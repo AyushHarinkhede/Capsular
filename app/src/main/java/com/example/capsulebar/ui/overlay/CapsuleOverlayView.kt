@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -45,8 +46,12 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.example.capsulebar.data.*
 import com.example.capsulebar.data.DisplayMode
+import com.example.capsulebar.util.FlashlightController
 
 fun getCapsuleColor(
     event: CapsuleEvent?,
@@ -98,6 +103,10 @@ fun getCapsuleColor(
             is CapsuleEvent.Delivery -> Color(0xFFF9A825)
             is CapsuleEvent.SystemToggle -> if (event.isEnabled) Color(0xFF2E7D32) else Color(0xFF37474F)
             is CapsuleEvent.Stopwatch -> Color(0xFF1565C0)
+            is CapsuleEvent.HourlyTracker -> Color(0xFF2E7D32)
+            is CapsuleEvent.CalendarEvent -> Color(0xFF1565C0)
+            is CapsuleEvent.Weather -> Color(0xFF00838F)
+            is CapsuleEvent.Alarm -> Color(0xFFE65100)
         }
     }
 
@@ -182,7 +191,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     // right speed: not too snappy, not sluggish.
     val springSpec = remember(quickAnimations) {
         spring<Float>(
-            dampingRatio = if (quickAnimations) 0.75f else 0.50f,
+            dampingRatio = if (quickAnimations) 0.50f else 0.42f,
             stiffness = if (quickAnimations) Spring.StiffnessMedium else Spring.StiffnessMediumLow
         )
     }
@@ -194,17 +203,22 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     val idlePillWidthDp = (cameraWidthDp + 24).toFloat()
 
     // ── EXPANDED DIMENSIONS ────────────────────────────────────────────────────
-    val expandedWidthDp = (screenWidthDp * 0.90f * (maxPopupWidthPercent / 100f)).coerceAtLeast(260f)
-    val expandedHeightDp = when (uiState.mainEvent) {
-        is CapsuleEvent.Music        -> 245f
-        is CapsuleEvent.Call         -> 205f
-        is CapsuleEvent.Recording    -> 185f
-        is CapsuleEvent.Timer        -> 185f
-        is CapsuleEvent.Stopwatch    -> 185f
-        is CapsuleEvent.Notification -> 215f
-        is CapsuleEvent.Progress     -> 175f
-        is CapsuleEvent.Navigation   -> 175f
-        else                         -> 195f
+    val expandedWidthDp = (screenWidthDp * 0.94f * (maxPopupWidthPercent / 100f)).coerceAtLeast(280f)
+    val expandedHeightDp = when (val ev = uiState.mainEvent) {
+        is CapsuleEvent.Music        -> 260f
+        is CapsuleEvent.Call         -> 230f
+        is CapsuleEvent.Recording    -> 210f
+        is CapsuleEvent.Timer        -> 210f
+        is CapsuleEvent.Stopwatch    -> 210f
+        is CapsuleEvent.Notification -> 255f
+        is CapsuleEvent.Progress     -> 200f
+        is CapsuleEvent.Navigation   -> 200f
+        is CapsuleEvent.SystemToggle -> if (ev.name.lowercase() == "flashlight") 240f else 210f
+        is CapsuleEvent.HourlyTracker -> 200f
+        is CapsuleEvent.CalendarEvent -> 200f
+        is CapsuleEvent.Weather -> 200f
+        is CapsuleEvent.Alarm -> 220f
+        else                         -> 210f
     }
 
     // Width: idle pill ──spring──► compact pill ──spring──► expanded card
@@ -233,8 +247,12 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     val leftRadius by animateFloatAsState(targetValue = leftRadiusTarget, animationSpec = springSpec, label = "leftRadius")
 
     // ── ENTRANCE SCALE ANIMATION ───────────────────────────────────────────────
-    // When a new event arrives the capsule briefly pinches inward (0.88) then
-    // springs back to 1.0 — replicates the "grow from camera cutout" morph feel.
+    val enterScale by animateFloatAsState(
+        targetValue = if (uiState.isHidden) 0f else 1f,
+        animationSpec = spring(dampingRatio = 0.38f, stiffness = Spring.StiffnessMediumLow),
+        label = "enterScale"
+    )
+
     var scaleTarget by remember { mutableStateOf(1f) }
     val prevEventId = remember { mutableStateOf<String?>(null) }
     LaunchedEffect(uiState.mainEvent?.id) {
@@ -248,7 +266,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     }
     val capsuleScale by animateFloatAsState(
         targetValue = scaleTarget,
-        animationSpec = spring(dampingRatio = 0.42f, stiffness = Spring.StiffnessMediumLow),
+        animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow),
         label = "capsuleScale"
     )
 
@@ -260,9 +278,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     }
     val spacerWidth by animateFloatAsState(targetValue = spacerWidthTarget, animationSpec = springSpec, label = "spacerWidth")
 
-    // 3. Right Bubble Dimensions (Split Event — always a PERFECT CIRCLE)
-    // Corner radius is always height/2 = 50% to guarantee a circle, regardless of edgeRoundingPercent.
-    // Width == Height == heightDp so it's always square → fully rounded = circle.
+    // 3. Right Bubble Dimensions (Split Event)
     val rightWidthTarget = if (uiState.displayMode == DisplayMode.SPLIT) heightDp.toFloat() else 0f
     val rightHeightTarget = if (uiState.displayMode == DisplayMode.SPLIT) heightDp.toFloat() else 0f
     val rightRadiusTarget = if (uiState.displayMode == DisplayMode.SPLIT) (heightDp.toFloat() / 2f) else 0f
@@ -271,70 +287,119 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     val rightHeight by animateFloatAsState(targetValue = rightHeightTarget, animationSpec = springSpec, label = "rightHeight")
     val rightRadius by animateFloatAsState(targetValue = rightRadiusTarget, animationSpec = springSpec, label = "rightRadius")
 
-    // Helper composables for the two bubble elements, reused in both layout orders
+    val scope = rememberCoroutineScope()
+    var cutLineStart by remember { mutableStateOf<Offset?>(null) }
+    var cutLineEnd by remember { mutableStateOf<Offset?>(null) }
+    var isSlashing by remember { mutableStateOf(false) }
+    var showCutHint by remember { mutableStateOf(false) }
+    var hintJob by remember { mutableStateOf<Job?>(null) }
+
     @Composable
     fun MainPill() {
         Box(
             modifier = Modifier
                 .width(leftWidth.dp)
                 .height(leftHeight.dp)
-                // Entrance scale: brief inward pinch then spring outward on new events
-                .graphicsLayer { scaleX = capsuleScale; scaleY = capsuleScale }
-                .clip(RoundedCornerShape(leftRadius.dp))
-                .background(getCapsuleColor(uiState.mainEvent, defaultColor, autoColor, useAppColors, context))
-                // ── TAP & LONG-PRESS ──────────────────────────────────────────
-                .pointerInput(uiState.displayMode) {
-                    detectTapGestures(
-                        onTap = {
-                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            CapsuleStateManager.toggleExpanded()
-                        },
-                        onLongPress = {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            CapsuleStateManager.toggleExpanded()
-                        }
-                    )
+                .graphicsLayer {
+                    scaleX = enterScale * capsuleScale
+                    scaleY = enterScale * capsuleScale
                 }
-                // ── SWIPE GESTURES ────────────────────────────────────────────
-                // Expanded + swipe UP        → collapse to compact (Dynamic Island dismiss)
-                // Compact  + swipe LEFT      → hide temporarily
-                // Compact  + swipe RIGHT     → next track (music only)
+                .clip(RoundedCornerShape(leftRadius.dp))
+                .background(
+                    if (uiState.displayMode == DisplayMode.EXPANDED) {
+                        Color(0xEE0B0B0B)
+                    } else {
+                        getCapsuleColor(uiState.mainEvent, defaultColor, autoColor, useAppColors, context)
+                    }
+                )
+                .then(
+                    if (uiState.displayMode == DisplayMode.EXPANDED) {
+                        Modifier.border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(leftRadius.dp))
+                    } else {
+                        Modifier
+                    }
+                )
+                // ── SLASH / DRAG GESTURE DETECTOR ──
                 .pointerInput(uiState.displayMode) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        val dx = dragAmount.x
-                        val dy = dragAmount.y
-                        when (uiState.displayMode) {
-                            DisplayMode.EXPANDED -> {
-                                if (dy < -10f) {
+                    detectDragGestures(
+                        onDragStart = { startOffset ->
+                            if (uiState.displayMode != DisplayMode.EXPANDED) {
+                                cutLineStart = startOffset
+                                cutLineEnd = startOffset
+                                isSlashing = true
+                            }
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            if (isSlashing) {
+                                cutLineEnd = change.position
+                            } else {
+                                val dy = dragAmount.y
+                                if (uiState.displayMode == DisplayMode.EXPANDED && dy < -8f) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     CapsuleStateManager.collapseToCompact()
                                 }
                             }
-                            else -> {
-                                when {
-                                    dx < -18f -> {
+                        },
+                        onDragEnd = {
+                            if (isSlashing) {
+                                val start = cutLineStart
+                                val end = cutLineEnd
+                                if (start != null && end != null) {
+                                    val dist = (end - start).getDistance()
+                                    if (dist > 100f) { // Swipe Cut slash threshold
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        CapsuleStateManager.hideTemporarily()
-                                    }
-                                    dx > 18f && uiState.mainEvent is CapsuleEvent.Music -> {
+                                        CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
+                                    } else {
+                                        // Tap -> play wiggle animation & show interactive hint
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        CapsuleStateManager.sendMediaAction("next")
+                                        scaleTarget = 0.92f
+                                        hintJob?.cancel()
+                                        hintJob = scope.launch {
+                                            showCutHint = true
+                                            delay(60)
+                                            scaleTarget = 1.06f
+                                            delay(60)
+                                            scaleTarget = 1f
+                                            delay(1800)
+                                            showCutHint = false
+                                        }
                                     }
                                 }
+                                cutLineStart = null
+                                cutLineEnd = null
+                                isSlashing = false
                             }
+                        },
+                        onDragCancel = {
+                            cutLineStart = null
+                            cutLineEnd = null
+                            isSlashing = false
                         }
-                    }
+                    )
                 }
                 .padding(horizontal = if (uiState.displayMode == DisplayMode.EXPANDED) 16.dp else 8.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Idle state (showAlways): render nothing inside — just a black pill over camera
             uiState.mainEvent?.let { event ->
                 MainContent(
                     event = event,
-                    displayMode = uiState.displayMode
+                    displayMode = uiState.displayMode,
+                    showCutHint = showCutHint
                 )
+            }
+
+            // Draw glowing slash/cut line during active drag
+            if (isSlashing && cutLineStart != null && cutLineEnd != null) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.9f),
+                        start = cutLineStart!!,
+                        end = cutLineEnd!!,
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
             }
         }
     }
@@ -368,38 +433,55 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         }
     }
 
-    // Conditionally lay out in Left or Right order based on user setting
-    if (splitPosition == "Left") {
-        // Side circle on LEFT: [Circle] [Spacer] [Main Capsule]
-        Row(
-            modifier = Modifier
-                .wrapContentSize()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SplitCircle()
-            SplitSpacer()
-            MainPill()
+    val hideStatusbarVal = settings.hideStatusbar && uiState.mainEvent != null
+
+    Box(
+        modifier = Modifier.fillMaxWidth(),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        if (hideStatusbarVal) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(38.dp)
+                    .background(Color.Black)
+            )
         }
-    } else {
-        // Side circle on RIGHT (default): [Main Capsule] [Spacer] [Circle]
-        Row(
-            modifier = Modifier
-                .wrapContentSize()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            MainPill()
-            SplitSpacer()
-            SplitCircle()
+
+        if (splitPosition == "Left") {
+            Row(
+                modifier = Modifier
+                    .wrapContentSize()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SplitCircle()
+                SplitSpacer()
+                MainPill()
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .wrapContentSize()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                MainPill()
+                SplitSpacer()
+                SplitCircle()
+            }
         }
     }
 }
 
 @Composable
-private fun MainContent(event: CapsuleEvent, displayMode: DisplayMode) {
+private fun MainContent(
+    event: CapsuleEvent,
+    displayMode: DisplayMode,
+    showCutHint: Boolean
+) {
     Crossfade(
         targetState = displayMode,
         animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow),
@@ -410,7 +492,7 @@ private fun MainContent(event: CapsuleEvent, displayMode: DisplayMode) {
         } else {
             // Main capsule always shows its full collapsed content regardless of split mode.
             // Only the side SplitContent composable uses compact dot/icon style.
-            CollapsedBubbleContent(event = event, isSplit = false)
+            CollapsedBubbleContent(event = event, isSplit = false, showCutHint = showCutHint)
         }
     }
 }
@@ -541,7 +623,11 @@ private fun MaterialYouProgressBar(
 }
 
 @Composable
-private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
+private fun CollapsedBubbleContent(
+    event: CapsuleEvent,
+    isSplit: Boolean,
+    showCutHint: Boolean
+) {
     val context = LocalContext.current
     val settings = remember { CapsuleSettings(context) }
     val cameraPosition = settings.cameraPosition
@@ -671,6 +757,19 @@ private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
                         modifier = Modifier.size(16.dp)
                     )
                 }
+                is CapsuleEvent.HourlyTracker -> {
+                    val icon = when {
+                        event.trackerName.lowercase().contains("step") -> Icons.Rounded.DirectionsRun
+                        event.trackerName.lowercase().contains("water") -> Icons.Rounded.LocalDrink
+                        else -> Icons.Rounded.Equalizer
+                    }
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialYouSageGreen,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
                 is CapsuleEvent.Notification -> {
                     if (event.appIcon != null) {
                         Image(
@@ -723,7 +822,7 @@ private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
                 }
                 is CapsuleEvent.Delivery -> {
                     val icon = when (event.appName.lowercase()) {
-                        "uber", "ola" -> Icons.Rounded.DirectionsCar
+                        "uber", "ola", "ride sharing", "cab" -> Icons.Rounded.DirectionsCar
                         else -> Icons.Rounded.DeliveryDining
                     }
                     Icon(
@@ -757,6 +856,31 @@ private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
                         imageVector = Icons.Rounded.Timer,
                         contentDescription = null,
                         tint = MaterialYouPastelBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                is CapsuleEvent.CalendarEvent -> {
+                    Icon(
+                        imageVector = Icons.Rounded.CalendarToday,
+                        contentDescription = null,
+                        tint = Color(0xFF90CAF9),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                is CapsuleEvent.Weather -> {
+                    val icon = if (event.condition.lowercase().contains("rain")) Icons.Rounded.Umbrella else Icons.Rounded.WbSunny
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color(0xFF80DEEA),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                is CapsuleEvent.Alarm -> {
+                    Icon(
+                        imageVector = Icons.Rounded.Alarm,
+                        contentDescription = null,
+                        tint = MaterialYouPeach,
                         modifier = Modifier.size(16.dp)
                     )
                 }
@@ -886,6 +1010,19 @@ private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
                             modifier = Modifier.size(16.dp)
                         )
                     }
+                    is CapsuleEvent.HourlyTracker -> {
+                        val icon = when {
+                            event.trackerName.lowercase().contains("step") -> Icons.Rounded.DirectionsRun
+                            event.trackerName.lowercase().contains("water") -> Icons.Rounded.LocalDrink
+                            else -> Icons.Rounded.Equalizer
+                        }
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = MaterialYouSageGreen,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                     is CapsuleEvent.Notification -> {
                         if (event.appIcon != null) {
                             Image(
@@ -938,7 +1075,7 @@ private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
                     }
                     is CapsuleEvent.Delivery -> {
                         val icon = when (event.appName.lowercase()) {
-                            "uber", "ola" -> Icons.Rounded.DirectionsCar
+                            "uber", "ola", "ride sharing", "cab" -> Icons.Rounded.DirectionsCar
                             else -> Icons.Rounded.DeliveryDining
                         }
                         Icon(
@@ -972,6 +1109,31 @@ private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
                             imageVector = Icons.Rounded.Timer,
                             contentDescription = null,
                             tint = MaterialYouPastelBlue,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    is CapsuleEvent.CalendarEvent -> {
+                        Icon(
+                            imageVector = Icons.Rounded.CalendarToday,
+                            contentDescription = null,
+                            tint = Color(0xFF90CAF9),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    is CapsuleEvent.Weather -> {
+                        val icon = if (event.condition.lowercase().contains("rain")) Icons.Rounded.Umbrella else Icons.Rounded.WbSunny
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = Color(0xFF80DEEA),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    is CapsuleEvent.Alarm -> {
+                        Icon(
+                            imageVector = Icons.Rounded.Alarm,
+                            contentDescription = null,
+                            tint = MaterialYouPeach,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -1070,6 +1232,32 @@ private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
                             )
                         }
                     }
+                    is CapsuleEvent.HourlyTracker -> {
+                        Text(
+                            text = event.countText,
+                            color = MaterialYouSageGreen,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    is CapsuleEvent.CalendarEvent -> {
+                        Text(
+                            text = event.title,
+                            color = Color(0xFF90CAF9),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    is CapsuleEvent.Weather -> {
+                        Text(
+                            text = event.tempText,
+                            color = Color(0xFF80DEEA),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                     is CapsuleEvent.Notification -> {
                         Text(
                             text = event.title,
@@ -1144,6 +1332,14 @@ private fun CollapsedBubbleContent(event: CapsuleEvent, isSplit: Boolean) {
                         Text(
                             text = "%02d:%02d".format(m, s),
                             color = MaterialYouPastelBlue,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    is CapsuleEvent.Alarm -> {
+                        Text(
+                            text = event.timeText,
+                            color = MaterialYouPeach,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1233,9 +1429,6 @@ private fun ExpandedCard(event: CapsuleEvent) {
     val haptic = LocalHapticFeedback.current
 
     // ── CONTENT FADE-IN DELAY ─────────────────────────────────────────────────
-    // On iOS the Dynamic Island content appears only after the spring morph
-    // settles (~100ms). We replicate this so users see the pill morph first,
-    // then the controls fade in — not both happening simultaneously.
     var contentVisible by remember { mutableStateOf(false) }
     val contentAlpha by animateFloatAsState(
         targetValue = if (contentVisible) 1f else 0f,
@@ -1257,9 +1450,6 @@ private fun ExpandedCard(event: CapsuleEvent) {
                 detectDragGestures { change, dragAmount ->
                     change.consume()
                     val dy = dragAmount.y
-                    // Swipe UP = collapse (primary Dynamic Island dismiss gesture)
-                    // Horizontal swipes are intentionally NOT collapsing so that
-                    // music sliders and horizontal content still work inside the card.
                     if (dy < -8f) {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         CapsuleStateManager.collapseToCompact()
@@ -1404,8 +1594,6 @@ private fun ExpandedCard(event: CapsuleEvent) {
                 }
             }
             is CapsuleEvent.Bluetooth -> {
-                val context = LocalContext.current
-                val settings = remember { CapsuleSettings(context) }
                 val imagePath = settings.bluetoothImagePath
                 val bitmap = if (imagePath != null) {
                     remember(imagePath) {
@@ -1493,6 +1681,25 @@ private fun ExpandedCard(event: CapsuleEvent) {
                 }
             }
             is CapsuleEvent.Timer -> {
+                var localRemaining by remember(event.id, event.remainingSeconds) { mutableStateOf(event.remainingSeconds) }
+                var timerRunning by remember(event.id, event.isRunning) { mutableStateOf(event.isRunning) }
+                
+                LaunchedEffect(timerRunning) {
+                    if (timerRunning) {
+                        while (localRemaining > 0) {
+                            delay(1000)
+                            localRemaining--
+                            CapsuleStateManager.postEvent(
+                                event.copy(remainingSeconds = localRemaining, isRunning = true)
+                            )
+                        }
+                        if (localRemaining == 0L) {
+                            timerRunning = false
+                            CapsuleStateManager.removeEvent(event.id)
+                        }
+                    }
+                }
+                
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1507,15 +1714,46 @@ private fun ExpandedCard(event: CapsuleEvent) {
                             letterSpacing = 1.sp
                         )
                         Text(
-                            text = formatTime(event.remainingSeconds),
+                            text = formatTime(localRemaining),
                             color = MaterialYouPeach,
                             fontSize = 28.sp,
                             fontWeight = FontWeight.Light
                         )
                     }
-                    Row {
+                    
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
-                            onClick = { CapsuleStateManager.removeEvent("timer") },
+                            onClick = {
+                                timerRunning = !timerRunning
+                                CapsuleStateManager.postEvent(
+                                    event.copy(isRunning = timerRunning, remainingSeconds = localRemaining)
+                                )
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0x22FFE082), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (timerRunning) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                tint = MaterialYouYellow
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                localRemaining = 300L
+                                CapsuleStateManager.postEvent(
+                                    event.copy(remainingSeconds = 300L, isRunning = timerRunning)
+                                )
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0x11FFFFFF), CircleShape)
+                        ) {
+                            Icon(Icons.Rounded.Refresh, null, tint = Color.White)
+                        }
+                        IconButton(
+                            onClick = { CapsuleStateManager.removeEvent(event.id) },
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(Color(0x22F2B8B5), CircleShape)
@@ -1601,53 +1839,127 @@ private fun ExpandedCard(event: CapsuleEvent) {
                 }
             }
             is CapsuleEvent.Notification -> {
-                Row(
+                var replyText by remember { mutableStateOf("") }
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (event.appIcon != null) {
-                        Image(
-                            bitmap = event.appIcon.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color(0x22A8C7FA)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.Message, null, tint = MaterialYouPastelBlue)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (event.appIcon != null) {
+                            Image(
+                                bitmap = event.appIcon.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0x22A8C7FA)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Rounded.Message, null, tint = MaterialYouPastelBlue)
+                            }
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = event.appName.uppercase(),
+                                color = MaterialYouMutedGray,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                text = event.title,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = event.text,
+                                color = MaterialYouWarmGray,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = event.appName.uppercase(),
-                            color = MaterialYouMutedGray,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val chips = listOf("OK", "On my way", "Yes", "No", "Thanks")
+                        chips.forEach { chip ->
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color(0x1EFFFFFF))
+                                    .clickable {
+                                        replyText = chip
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(chip, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextField(
+                            value = replyText,
+                            onValueChange = { replyText = it },
+                            placeholder = { Text("Reply...", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f)) },
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color(0x12FFFFFF),
+                                unfocusedContainerColor = Color(0x12FFFFFF),
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.weight(1f).height(40.dp),
+                            singleLine = true
                         )
-                        Text(
-                            text = event.title,
-                            color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = event.text,
-                            color = MaterialYouWarmGray,
-                            fontSize = 12.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        IconButton(
+                            onClick = {
+                                if (replyText.isNotEmpty()) {
+                                    com.example.capsulebar.service.CapsuleNotificationListener.replyToNotification(event.id, replyText)
+                                    replyText = ""
+                                    CapsuleStateManager.removeEvent(event.id)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(MaterialYouPastelBlue, CircleShape)
+                        ) {
+                            Icon(Icons.Rounded.Send, null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                        }
+                        IconButton(
+                            onClick = {
+                                com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
+                                CapsuleStateManager.removeEvent(event.id)
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0x22F2B8B5), CircleShape)
+                        ) {
+                            Icon(Icons.Rounded.Delete, null, tint = MaterialYouCoral, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }
@@ -1711,49 +2023,90 @@ private fun ExpandedCard(event: CapsuleEvent) {
                                 fontSize = 12.sp
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Color(0x22C4E1A5))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = event.durationText,
-                                color = MaterialYouSageGreen,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        if (!event.isIncoming) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color(0x22C4E1A5))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = event.durationText,
+                                    color = MaterialYouSageGreen,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = { },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(Color(0x11FFFFFF), CircleShape)
+                    Spacer(Modifier.height(16.dp))
+                    if (event.isIncoming) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            Icon(Icons.Rounded.MicOff, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            Button(
+                                onClick = {
+                                    com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "answer")
+                                    CapsuleStateManager.postEvent(
+                                        event.copy(isIncoming = false, durationText = "00:00")
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialYouSageGreen),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f).height(44.dp)
+                            ) {
+                                Icon(Icons.Rounded.Call, null, tint = Color.Black)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Accept", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Button(
+                                onClick = {
+                                    com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "decline")
+                                    CapsuleStateManager.removeEvent(event.id)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialYouCoral),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.weight(1f).height(44.dp)
+                            ) {
+                                Icon(Icons.Rounded.CallEnd, null, tint = Color.Black)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Decline", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
-                        IconButton(
-                            onClick = { },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(Color(0x11FFFFFF), CircleShape)
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Rounded.VolumeUp, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                        IconButton(
-                            onClick = { CapsuleStateManager.removeEvent("call") },
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(MaterialYouCoral, CircleShape)
-                        ) {
-                            Icon(Icons.Rounded.CallEnd, null, tint = Color.Black, modifier = Modifier.size(20.dp))
+                            IconButton(
+                                onClick = { },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0x11FFFFFF), CircleShape)
+                            ) {
+                                Icon(Icons.Rounded.MicOff, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(
+                                onClick = { },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0x11FFFFFF), CircleShape)
+                            ) {
+                                Icon(Icons.Rounded.VolumeUp, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(
+                                onClick = {
+                                    com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
+                                    CapsuleStateManager.removeEvent(event.id)
+                                },
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(MaterialYouCoral, CircleShape)
+                            ) {
+                                Icon(Icons.Rounded.CallEnd, null, tint = Color.Black, modifier = Modifier.size(20.dp))
+                            }
                         }
                     }
                 }
@@ -1833,7 +2186,7 @@ private fun ExpandedCard(event: CapsuleEvent) {
             }
             is CapsuleEvent.Delivery -> {
                 val icon = when (event.appName.lowercase()) {
-                    "uber", "ola" -> Icons.Rounded.DirectionsCar
+                    "uber", "ola", "ride sharing", "cab" -> Icons.Rounded.DirectionsCar
                     else -> Icons.Rounded.DeliveryDining
                 }
                 Column(modifier = Modifier.fillMaxWidth()) {
@@ -1880,25 +2233,113 @@ private fun ExpandedCard(event: CapsuleEvent) {
                 }
                 val toggleColor = if (event.isEnabled) MaterialYouSageGreen else MaterialYouMutedGray
                 val toggleBg = if (event.isEnabled) Color(0x22C4E1A5) else Color(0x11FFFFFF)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(toggleBg),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(icon, null, tint = toggleColor, modifier = Modifier.size(24.dp))
+                
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(toggleBg)
+                                    .clickable {
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        if (event.name.lowercase() == "flashlight") {
+                                            val nextState = !event.isEnabled
+                                            if (nextState) {
+                                                FlashlightController.turnOn(context, FlashlightController.intensityFlow.value)
+                                                CapsuleStateManager.postEvent(event.copy(isEnabled = true, durationMs = 0))
+                                            } else {
+                                                FlashlightController.turnOff(context)
+                                                CapsuleStateManager.removeEvent(event.id)
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(icon, null, tint = toggleColor, modifier = Modifier.size(24.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(event.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(if (event.isEnabled) "Enabled" else "Disabled", color = toggleColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(event.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text(if (event.isEnabled) "Enabled" else "Disabled", color = toggleColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        
+                        Switch(
+                            checked = event.isEnabled,
+                            onCheckedChange = { nextState ->
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                if (event.name.lowercase() == "flashlight") {
+                                    if (nextState) {
+                                        FlashlightController.turnOn(context, FlashlightController.intensityFlow.value)
+                                        CapsuleStateManager.postEvent(event.copy(isEnabled = true, durationMs = 0))
+                                    } else {
+                                        FlashlightController.turnOff(context)
+                                        CapsuleStateManager.removeEvent(event.id)
+                                    }
+                                }
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.Black,
+                                checkedTrackColor = toggleColor
+                            )
+                        )
+                    }
+                    
+                    if (event.name.lowercase() == "flashlight" && event.isEnabled) {
+                        Spacer(Modifier.height(16.dp))
+                        val intensity by FlashlightController.intensityFlow.collectAsStateWithLifecycle(initialValue = 0.5f)
+                        
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Flashlight Intensity", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                Text("${(intensity * 100).toInt()}%", color = toggleColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Remove,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(16.dp).clickable {
+                                        val newIntensity = (intensity - 0.1f).coerceAtLeast(0.1f)
+                                        FlashlightController.setIntensity(context, newIntensity)
+                                    }
+                                )
+                                Slider(
+                                    value = intensity,
+                                    onValueChange = { FlashlightController.setIntensity(context, it) },
+                                    valueRange = 0.1f..1.0f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = toggleColor,
+                                        activeTrackColor = toggleColor,
+                                        inactiveTrackColor = Color.White.copy(alpha = 0.2f)
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Rounded.Add,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(16.dp).clickable {
+                                        val newIntensity = (intensity + 0.1f).coerceIn(0.1f, 1.0f)
+                                        FlashlightController.setIntensity(context, newIntensity)
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -1912,6 +2353,9 @@ private fun ExpandedCard(event: CapsuleEvent) {
                         while (true) {
                             kotlinx.coroutines.delay(1000)
                             displayElapsed++
+                            CapsuleStateManager.postEvent(
+                                event.copy(elapsedSeconds = displayElapsed, isRunning = true)
+                            )
                         }
                     }
                 }
@@ -1950,21 +2394,290 @@ private fun ExpandedCard(event: CapsuleEvent) {
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Stop / dismiss
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconButton(
-                            onClick = { CapsuleStateManager.removeEvent("stopwatch") },
+                            onClick = {
+                                val nextRunning = !event.isRunning
+                                CapsuleStateManager.postEvent(
+                                    event.copy(isRunning = nextRunning, elapsedSeconds = displayElapsed)
+                                )
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0x22A8C7FA), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (event.isRunning) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                tint = MaterialYouPastelBlue
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                displayElapsed = 0L
+                                CapsuleStateManager.postEvent(
+                                    event.copy(elapsedSeconds = 0L, isRunning = event.isRunning)
+                                )
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(Color(0x11FFFFFF), CircleShape)
+                        ) {
+                            Icon(Icons.Rounded.Refresh, null, tint = Color.White)
+                        }
+                        IconButton(
+                            onClick = { CapsuleStateManager.removeEvent(event.id) },
                             modifier = Modifier
                                 .size(40.dp)
                                 .background(Color(0x22F2B8B5), CircleShape)
                         ) {
-                            Icon(Icons.Rounded.Stop, null, tint = MaterialYouCoral, modifier = Modifier.size(22.dp))
+                            Icon(Icons.Rounded.Close, null, tint = MaterialYouCoral)
+                        }
+                    }
+                }
+            }
+            is CapsuleEvent.HourlyTracker -> {
+                val isSteps = event.trackerName.lowercase().contains("step")
+                val prefKey = if (isSteps) "steps_count" else "water_count"
+                val defaultCount = if (isSteps) 4500 else 3
+                val target = if (isSteps) 6000 else 8
+                val trackerPrefs = remember { context.getSharedPreferences("hourly_tracker_prefs", Context.MODE_PRIVATE) }
+                var currentCount by remember(event.id) {
+                    mutableStateOf(trackerPrefs.getInt(prefKey, defaultCount))
+                }
+                
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x22C4E1A5)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val icon = if (isSteps) Icons.Rounded.DirectionsRun else Icons.Rounded.LocalDrink
+                            Icon(icon, null, tint = MaterialYouSageGreen, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = event.trackerName,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (isSteps) "$currentCount / $target Steps" else "$currentCount / $target Glasses (${currentCount * 200}ml)",
+                                color = MaterialYouSageGreen,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (currentCount > 0) {
+                                        val nextCount = currentCount - if (isSteps) 500 else 1
+                                        currentCount = nextCount.coerceAtLeast(0)
+                                        trackerPrefs.edit().putInt(prefKey, currentCount).apply()
+                                        
+                                        val newProgress = (currentCount.toFloat() / target).coerceIn(0f, 1f)
+                                        val newCountText = if (isSteps) "$currentCount / $target Steps" else "$currentCount / $target Glasses (${currentCount * 200}ml)"
+                                        CapsuleStateManager.postEvent(
+                                            event.copy(
+                                                countText = newCountText,
+                                                progress = newProgress
+                                            )
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0x11FFFFFF), CircleShape)
+                            ) {
+                                Icon(Icons.Rounded.Remove, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                            IconButton(
+                                onClick = {
+                                    val nextCount = currentCount + if (isSteps) 500 else 1
+                                    currentCount = nextCount
+                                    trackerPrefs.edit().putInt(prefKey, currentCount).apply()
+                                    
+                                    val newProgress = (currentCount.toFloat() / target).coerceIn(0f, 1f)
+                                    val newCountText = if (isSteps) "$currentCount / $target Steps" else "$currentCount / $target Glasses (${currentCount * 200}ml)"
+                                    CapsuleStateManager.postEvent(
+                                        event.copy(
+                                            countText = newCountText,
+                                            progress = newProgress
+                                        )
+                                    )
+                                },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(Color(0x11FFFFFF), CircleShape)
+                            ) {
+                                Icon(Icons.Rounded.Add, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    val currentProgress = (currentCount.toFloat() / target).coerceIn(0f, 1f)
+                    MaterialYouProgressBar(
+                        progress = currentProgress,
+                        color = MaterialYouSageGreen,
+                        trackColor = Color(0x11FFFFFF),
+                        height = 6.dp,
+                        showThumb = false
+                    )
+                }
+            }
+            is CapsuleEvent.Alarm -> {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x22FFB74D)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Alarm, null, tint = Color(0xFFFFB74D), modifier = Modifier.size(26.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = event.label.ifEmpty { "Alarm" },
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = event.timeText,
+                                color = Color(0xFFFFB74D),
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Light
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "snooze")
+                                CapsuleStateManager.removeEvent(event.id)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF)),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) {
+                            Text("Snooze", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Button(
+                            onClick = {
+                                com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "dismiss")
+                                CapsuleStateManager.removeEvent(event.id)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373)),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) {
+                            Text("Dismiss", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            is CapsuleEvent.CalendarEvent -> {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x2290CAF9)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.CalendarToday, null, tint = Color(0xFF90CAF9), modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = event.title,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = event.timeText,
+                                color = Color(0xFF90CAF9),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    if (event.location.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.LocationOn, null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(event.location, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+            is CapsuleEvent.Weather -> {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0x2280DEEA)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val icon = if (event.condition.lowercase().contains("rain")) Icons.Rounded.Umbrella else Icons.Rounded.WbSunny
+                            Icon(icon, null, tint = Color(0xFF80DEEA), modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Current Weather",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${event.tempText} • ${event.condition}",
+                                color = Color(0xFF80DEEA),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
             }
             else -> {
-                // Fallback for LockState, Network, SoundProfile, USB, and any future events
                 Text(
                     text = "Active",
                     color = Color.White,

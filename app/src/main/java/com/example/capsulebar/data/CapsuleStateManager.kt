@@ -111,6 +111,12 @@ object CapsuleStateManager {
         recalculateState()
     }
 
+    @Synchronized
+    fun isEventActive(id: String): Boolean {
+        return activeEvents.containsKey(id)
+    }
+
+
     fun setDisplayMode(mode: DisplayMode) {
         collapseJob?.cancel()
         _uiState.value = _uiState.value.copy(displayMode = mode, isHidden = mode == DisplayMode.HIDDEN)

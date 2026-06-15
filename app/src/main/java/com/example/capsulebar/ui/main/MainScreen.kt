@@ -1,4 +1,4 @@
-﻿package com.example.capsulebar.ui.main
+package com.example.capsulebar.ui.main
 
 import android.content.Intent
 import android.net.Uri
@@ -41,6 +41,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.expandVertically
@@ -48,6 +49,14 @@ import androidx.compose.animation.shrinkVertically
 import com.example.capsulebar.R
 import java.io.File
 import java.io.FileOutputStream
+import androidx.compose.ui.composed
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,7 +70,21 @@ fun MainScreen(
 
     val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
+        onResult = { _ ->
+            viewModel.checkPermissions()
+        }
+    )
+
+    val calendarPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { _ ->
+            viewModel.checkPermissions()
+        }
+    )
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { _ ->
             viewModel.checkPermissions()
         }
     )
@@ -83,6 +106,9 @@ fun MainScreen(
     val isOverlayGranted by viewModel.isOverlayPermissionGranted.collectAsStateWithLifecycle()
     val isNotificationGranted by viewModel.isNotificationPermissionGranted.collectAsStateWithLifecycle()
     val isRecordAudioGranted by viewModel.isRecordAudioPermissionGranted.collectAsStateWithLifecycle()
+    val isAccessibilityGranted by viewModel.isAccessibilityPermissionGranted.collectAsStateWithLifecycle()
+    val isCalendarGranted by viewModel.isCalendarPermissionGranted.collectAsStateWithLifecycle()
+    val isLocationGranted by viewModel.isLocationPermissionGranted.collectAsStateWithLifecycle()
     val isServiceRunning by viewModel.isServiceRunning.collectAsStateWithLifecycle()
 
     val xOffset by viewModel.xOffset.collectAsStateWithLifecycle()
@@ -143,16 +169,18 @@ fun MainScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
             .padding(top = 8.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // â”€â”€ TOP LOGO + TITLE BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        // M3 ExtraLarge shape (28dp) â€” the iconic Pixel widget / Material You shape.
+        // ── TOP LOGO + TITLE BAR ──────────────────────────────────────────────────
+        // M3 ExtraLarge shape (28dp) — the iconic Pixel widget / Material You shape.
         // Background uses the system dynamic primary color (wallpaper-extracted on API 31+).
         Row(
             modifier = Modifier
+                .widthIn(max = 440.dp)
                 .fillMaxWidth()
+                .padding(horizontal = 24.dp)
                 .clip(MaterialTheme.shapes.extraLarge)
                 .background(
                     Brush.linearGradient(
@@ -161,7 +189,7 @@ fun MainScreen(
                         1.0f to MaterialTheme.colorScheme.tertiary.copy(alpha = 0.80f)
                     )
                 )
-                .padding(horizontal = 20.dp, vertical = 18.dp),
+                .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -169,208 +197,264 @@ fun MainScreen(
                 painter = painterResource(id = R.drawable.logo),
                 contentDescription = "Capsular logo",
                 modifier = Modifier
-                    .size(60.dp)
-                    .clip(MaterialTheme.shapes.medium)
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(16.dp))
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Capsular",
                     color = MaterialTheme.colorScheme.onPrimary,
-                    fontSize = 28.sp,
+                    fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = (-0.5).sp,
-                    lineHeight = 30.sp
-                )
-                Text(
-                    text = "Dynamic Island for Android",
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.72f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.3.sp
+                    lineHeight = 26.sp
                 )
             }
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isServiceRunning) Color(0xFF4CAF50)
-                        else MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.30f)
+        }
+
+        // ── PERMISSIONS ───────────────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            PermissionSection(
+                isOverlayGranted = isOverlayGranted,
+                isNotificationGranted = isNotificationGranted,
+                isRecordAudioGranted = isRecordAudioGranted,
+                isAccessibilityGranted = isAccessibilityGranted,
+                isCalendarGranted = isCalendarGranted,
+                isLocationGranted = isLocationGranted,
+                onRequestOverlay = {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
                     )
+                    context.startActivity(intent)
+                },
+                onRequestNotification = {
+                    val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                    context.startActivity(intent)
+                },
+                onRequestRecordAudio = {
+                    recordAudioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                },
+                onRequestAccessibility = {
+                    val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    context.startActivity(intent)
+                },
+                onRequestCalendar = {
+                    calendarPermissionLauncher.launch(android.Manifest.permission.READ_CALENDAR)
+                },
+                onRequestLocation = {
+                    locationPermissionLauncher.launch(android.Manifest.permission.ACCESS_FINE_LOCATION)
+                }
             )
         }
 
-        // â”€â”€ PERMISSIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        PermissionSection(
-            isOverlayGranted = isOverlayGranted,
-            isNotificationGranted = isNotificationGranted,
-            isRecordAudioGranted = isRecordAudioGranted,
-            onRequestOverlay = {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    Uri.parse("package:${context.packageName}")
-                )
-                context.startActivity(intent)
-            },
-            onRequestNotification = {
-                val intent = Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
-                context.startActivity(intent)
-            },
-            onRequestRecordAudio = {
-                recordAudioPermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
-            }
-        )
+        // ── SERVICE CONTROL SECTION ────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            ServiceControlSection(
+                isServiceRunning = isServiceRunning,
+                isPermissionsGranted = isOverlayGranted,
+                onToggleService = {
+                    if (!isOverlayGranted) {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}")
+                        )
+                        context.startActivity(intent)
+                    } else {
+                        viewModel.toggleService()
+                    }
+                }
+            )
+        }
 
-        // â”€â”€ OVERLAY ENGINE SERVICE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        ServiceControlSection(
-            isServiceRunning = isServiceRunning,
-            isPermissionsGranted = isOverlayGranted,
-            onToggleService = { viewModel.toggleService() }
-        )
+        // ── POSITION & SIZE ──────────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            PositionSection(
+                xOffset = xOffset,
+                yOffset = yOffset,
+                widthDp = widthDp,
+                heightDp = heightDp,
+                edgeRoundingPercent = edgeRoundingPercent,
+                maxPopupWidthPercent = maxPopupWidthPercent,
+                cameraPosition = cameraPosition,
+                cameraWidthDp = cameraWidthDp,
+                isCalibrationMode = isCalibrationMode,
+                isServiceRunning = isServiceRunning,
+                splitPosition = splitPosition,
+                onXChanged = { viewModel.updateXOffset(it) },
+                onYChanged = { viewModel.updateYOffset(it) },
+                onWidthChanged = { viewModel.updateWidthDp(it) },
+                onHeightChanged = { viewModel.updateHeightDp(it) },
+                onEdgeRoundingChanged = { viewModel.updateEdgeRoundingPercent(it) },
+                onMaxPopupWidthChanged = { viewModel.updateMaxPopupWidthPercent(it) },
+                onCameraPositionChanged = { viewModel.updateCameraPosition(it) },
+                onCameraWidthChanged = { viewModel.updateCameraWidthDp(it) },
+                onToggleCalibration = { viewModel.toggleCalibrationMode(it) },
+                onSplitPositionChanged = { viewModel.updateSplitPosition(it) },
+                onReset = {
+                    viewModel.updateXOffset(0)
+                    viewModel.updateYOffset(15)
+                    viewModel.updateWidthDp(110)
+                    viewModel.updateHeightDp(36)
+                    viewModel.updateEdgeRoundingPercent(60)
+                    viewModel.updateMaxPopupWidthPercent(100)
+                }
+            )
+        }
 
-        // â”€â”€ POSITION & SIZE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        PositionSection(
-            xOffset = xOffset,
-            yOffset = yOffset,
-            widthDp = widthDp,
-            heightDp = heightDp,
-            edgeRoundingPercent = edgeRoundingPercent,
-            maxPopupWidthPercent = maxPopupWidthPercent,
-            cameraPosition = cameraPosition,
-            cameraWidthDp = cameraWidthDp,
-            isCalibrationMode = isCalibrationMode,
-            isServiceRunning = isServiceRunning,
-            splitPosition = splitPosition,
-            onXChanged = { viewModel.updateXOffset(it) },
-            onYChanged = { viewModel.updateYOffset(it) },
-            onWidthChanged = { viewModel.updateWidthDp(it) },
-            onHeightChanged = { viewModel.updateHeightDp(it) },
-            onEdgeRoundingChanged = { viewModel.updateEdgeRoundingPercent(it) },
-            onMaxPopupWidthChanged = { viewModel.updateMaxPopupWidthPercent(it) },
-            onCameraPositionChanged = { viewModel.updateCameraPosition(it) },
-            onCameraWidthChanged = { viewModel.updateCameraWidthDp(it) },
-            onToggleCalibration = { viewModel.toggleCalibrationMode(it) },
-            onSplitPositionChanged = { viewModel.updateSplitPosition(it) },
-            onReset = {
-                viewModel.updateXOffset(0)
-                viewModel.updateYOffset(15)
-                viewModel.updateWidthDp(110)
-                viewModel.updateHeightDp(36)
-                viewModel.updateEdgeRoundingPercent(60)
-                viewModel.updateMaxPopupWidthPercent(100)
-            }
-        )
+        // ── APPEARANCE ────────────────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            AppearanceSection(
+                showAsNotch = showAsNotch,
+                addBackground = addBackground,
+                showImages = showImages,
+                quickAnimations = quickAnimations,
+                premiumAnimations = premiumAnimations,
+                reverseOrder = reverseOrder,
+                maxTextLines = maxTextLines,
+                defaultColor = defaultColor,
+                autoColor = autoColor,
+                useAppColors = useAppColors,
+                showMusicVisualizer = showMusicVisualizer,
+                useAndroidMusicControls = useAndroidMusicControls,
+                iconOption = iconOption,
+                bluetoothImagePath = bluetoothImagePath,
+                onShowAsNotchToggle = { viewModel.toggleShowAsNotch(it) },
+                onAddBackgroundToggle = { viewModel.toggleAddBackground(it) },
+                onShowImagesToggle = { viewModel.toggleShowImages(it) },
+                onQuickAnimationsToggle = { viewModel.toggleQuickAnimations(it) },
+                onPremiumAnimationsToggle = { viewModel.togglePremiumAnimations(it) },
+                onReverseOrderToggle = { viewModel.toggleReverseOrder(it) },
+                onMaxTextLinesChanged = { viewModel.updateMaxTextLines(it) },
+                onDefaultColorChanged = { viewModel.updateDefaultColor(it) },
+                onAutoColorToggle = { viewModel.toggleAutoColor(it) },
+                onUseAppColorsToggle = { viewModel.toggleUseAppColors(it) },
+                onShowMusicVisualizerToggle = { viewModel.toggleShowMusicVisualizer(it) },
+                onUseAndroidMusicControlsToggle = { viewModel.toggleUseAndroidMusicControls(it) },
+                onIconOptionChanged = { viewModel.updateIconOption(it) },
+                onUploadBluetoothImage = { path -> viewModel.updateBluetoothImage(path) }
+            )
+        }
 
-        // â”€â”€ APPEARANCE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        AppearanceSection(
-            showAsNotch = showAsNotch,
-            addBackground = addBackground,
-            showImages = showImages,
-            quickAnimations = quickAnimations,
-            premiumAnimations = premiumAnimations,
-            reverseOrder = reverseOrder,
-            maxTextLines = maxTextLines,
-            defaultColor = defaultColor,
-            autoColor = autoColor,
-            useAppColors = useAppColors,
-            showMusicVisualizer = showMusicVisualizer,
-            useAndroidMusicControls = useAndroidMusicControls,
-            iconOption = iconOption,
-            bluetoothImagePath = bluetoothImagePath,
-            onShowAsNotchToggle = { viewModel.toggleShowAsNotch(it) },
-            onAddBackgroundToggle = { viewModel.toggleAddBackground(it) },
-            onShowImagesToggle = { viewModel.toggleShowImages(it) },
-            onQuickAnimationsToggle = { viewModel.toggleQuickAnimations(it) },
-            onPremiumAnimationsToggle = { viewModel.togglePremiumAnimations(it) },
-            onReverseOrderToggle = { viewModel.toggleReverseOrder(it) },
-            onMaxTextLinesChanged = { viewModel.updateMaxTextLines(it) },
-            onDefaultColorChanged = { viewModel.updateDefaultColor(it) },
-            onAutoColorToggle = { viewModel.toggleAutoColor(it) },
-            onUseAppColorsToggle = { viewModel.toggleUseAppColors(it) },
-            onShowMusicVisualizerToggle = { viewModel.toggleShowMusicVisualizer(it) },
-            onUseAndroidMusicControlsToggle = { viewModel.toggleUseAndroidMusicControls(it) },
-            onIconOptionChanged = { viewModel.updateIconOption(it) },
-            onUploadBluetoothImage = { path -> viewModel.updateBluetoothImage(path) }
-        )
+        // ── GENERAL ─────────────────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            GeneralSection(
+                allowTwoPopups = allowTwoPopups,
+                autoExpand = autoExpand,
+                sendReplies = sendReplies,
+                hideInForeground = hideInForeground,
+                showInLandscape = showInLandscape,
+                showAlways = showAlways,
+                quickAccessApps = quickAccessApps,
+                showOnLockscreen = showOnLockscreen,
+                hideOnNotificationPanel = hideOnNotificationPanel,
+                hideStatusbar = hideStatusbar,
+                notificationCountOption = notificationCountOption,
+                autoHideSmallPopupHours = autoHideSmallPopupHours,
+                autoHideExpandedPopupSec = autoHideExpandedPopupSec,
+                hideWhenTouchingOutside = hideWhenTouchingOutside,
+                onAllowTwoPopupsToggle = { viewModel.toggleAllowTwoPopups(it) },
+                onAutoExpandToggle = { viewModel.toggleAutoExpand(it) },
+                onSendRepliesToggle = { viewModel.toggleSendReplies(it) },
+                onHideInForegroundToggle = { viewModel.toggleHideInForeground(it) },
+                onShowInLandscapeToggle = { viewModel.toggleShowInLandscape(it) },
+                onShowAlwaysToggle = { viewModel.toggleShowAlways(it) },
+                onQuickAccessAppsToggle = { viewModel.toggleQuickAccessApps(it) },
+                onShowOnLockscreenToggle = { viewModel.toggleShowOnLockscreen(it) },
+                onHideOnNotificationPanelToggle = { viewModel.toggleHideOnNotificationPanel(it) },
+                onHideStatusbarToggle = { viewModel.toggleHideStatusbar(it) },
+                onNotificationCountOptionChanged = { viewModel.updateNotificationCountOption(it) },
+                onAutoHideSmallPopupHoursChanged = { viewModel.updateAutoHideSmallPopupHours(it) },
+                onAutoHideExpandedPopupSecChanged = { viewModel.updateAutoHideExpandedPopupSec(it) },
+                onHideWhenTouchingOutsideToggle = { viewModel.toggleHideWhenTouchingOutside(it) }
+            )
+        }
 
-        // â”€â”€ GENERAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        GeneralSection(
-            allowTwoPopups = allowTwoPopups,
-            autoExpand = autoExpand,
-            sendReplies = sendReplies,
-            hideInForeground = hideInForeground,
-            showInLandscape = showInLandscape,
-            showAlways = showAlways,
-            quickAccessApps = quickAccessApps,
-            showOnLockscreen = showOnLockscreen,
-            hideOnNotificationPanel = hideOnNotificationPanel,
-            hideStatusbar = hideStatusbar,
-            notificationCountOption = notificationCountOption,
-            autoHideSmallPopupHours = autoHideSmallPopupHours,
-            autoHideExpandedPopupSec = autoHideExpandedPopupSec,
-            hideWhenTouchingOutside = hideWhenTouchingOutside,
-            onAllowTwoPopupsToggle = { viewModel.toggleAllowTwoPopups(it) },
-            onAutoExpandToggle = { viewModel.toggleAutoExpand(it) },
-            onSendRepliesToggle = { viewModel.toggleSendReplies(it) },
-            onHideInForegroundToggle = { viewModel.toggleHideInForeground(it) },
-            onShowInLandscapeToggle = { viewModel.toggleShowInLandscape(it) },
-            onShowAlwaysToggle = { viewModel.toggleShowAlways(it) },
-            onQuickAccessAppsToggle = { viewModel.toggleQuickAccessApps(it) },
-            onShowOnLockscreenToggle = { viewModel.toggleShowOnLockscreen(it) },
-            onHideOnNotificationPanelToggle = { viewModel.toggleHideOnNotificationPanel(it) },
-            onHideStatusbarToggle = { viewModel.toggleHideStatusbar(it) },
-            onNotificationCountOptionChanged = { viewModel.updateNotificationCountOption(it) },
-            onAutoHideSmallPopupHoursChanged = { viewModel.updateAutoHideSmallPopupHours(it) },
-            onAutoHideExpandedPopupSecChanged = { viewModel.updateAutoHideExpandedPopupSec(it) },
-            onHideWhenTouchingOutsideToggle = { viewModel.toggleHideWhenTouchingOutside(it) }
-        )
-
-        // â”€â”€ EVENT SIMULATOR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-        EventSimulatorSection(
-            onMockBattery = { viewModel.triggerMockBatteryCharging() },
-            onMockLowBattery = { viewModel.triggerMockLowBattery() },
-            onMockFaceID = { viewModel.triggerMockFaceID(true) },
-            onMockFaceIDFail = { viewModel.triggerMockFaceID(false) },
-            onMockApplePay = { viewModel.triggerMockApplePay() },
-            onMockAirDrop = { viewModel.triggerMockAirDrop() },
-            onMockBluetooth = { viewModel.triggerMockBluetoothHeadset("Pixel Buds Pro 2", 92) },
-            onMockFocusMode = { viewModel.triggerMockFocusMode("Work") },
-            onMockOngoingCall = { viewModel.triggerMockOngoingCall("Ayush", false) },
-            onMockIncomingCall = { viewModel.triggerMockOngoingCall("Mom", true) },
-            onMockScreenRecord = { viewModel.triggerMockScreenRecording() },
-            onMockVoiceMemo = { viewModel.triggerMockVoiceMemo() },
-            onMockHotspot = { viewModel.triggerMockHotspot(3) },
-            onMockUber = { viewModel.triggerMockUberOla("Uber", "Driver arriving in 3m", 0.75f) },
-            onMockDelivery = { viewModel.triggerMockZomatoSwiggy("Zomato", "Delivery boy is near", 0.9f) },
-            onMockMusic = { viewModel.triggerMockMusicPlayback() },
-            onMockTimer = { viewModel.triggerMockTimer() },
-            onMockStopwatch = { viewModel.triggerMockStopwatch() },
-            onMockNav = { viewModel.triggerMockNavigation() },
-            onMockProgress = { viewModel.triggerMockProgress() },
-            onMockNotification = { viewModel.triggerMockNotification() },
-            onMockWifiToggle = { viewModel.triggerMockSystemToggle("Wi-Fi", true) },
-            onMockFlashlightToggle = { viewModel.triggerMockSystemToggle("Flashlight", true) },
-            onMockDndToggle = { viewModel.triggerMockSystemToggle("DND", true) },
-            onMockSilentToggle = { viewModel.triggerMockSystemToggle("Silent", true) },
-            onMockLowPowerToggle = { viewModel.triggerMockSystemToggle("Low Power", true) },
-            onClear = { viewModel.clearEvents() }
-        )
+        // ── MOCK CAPSULE (SIMULATOR) ──────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            EventSimulatorSection(
+                onMockBattery = { viewModel.triggerMockBatteryCharging() },
+                onMockLowBattery = { viewModel.triggerMockLowBattery() },
+                onMockFaceID = { viewModel.triggerMockFaceID(true) },
+                onMockFaceIDFail = { viewModel.triggerMockFaceID(false) },
+                onMockMobilePay = { viewModel.triggerMockMobilePay() },
+                onMockQuickShare = { viewModel.triggerMockQuickShare() },
+                onMockBluetooth = { viewModel.triggerMockBluetoothHeadset("Pixel Buds Pro 2", 92) },
+                onMockFocusMode = { viewModel.triggerMockFocusMode("Work") },
+                onMockOngoingCall = { viewModel.triggerMockOngoingCall("Ayush", false) },
+                onMockIncomingCall = { viewModel.triggerMockOngoingCall("Mom", true) },
+                onMockScreenRecord = { viewModel.triggerMockScreenRecording() },
+                onMockVoiceMemo = { viewModel.triggerMockVoiceMemo() },
+                onMockHotspot = { viewModel.triggerMockHotspot(3) },
+                onMockRideSharing = { viewModel.triggerMockRideSharing("Cab Service", "Driver arriving in 3m", 0.75f) },
+                onMockFoodDelivery = { viewModel.triggerMockFoodDelivery("Food Delivery", "Delivery partner is near", 0.9f) },
+                onMockMusic = { viewModel.triggerMockMusicPlayback() },
+                onMockTimer = { viewModel.triggerMockTimer() },
+                onMockStopwatch = { viewModel.triggerMockStopwatch() },
+                onMockAlarm = { viewModel.triggerMockAlarm() },
+                onMockNav = { viewModel.triggerMockNavigation() },
+                onMockProgress = { viewModel.triggerMockProgress() },
+                onMockNotification = { viewModel.triggerMockNotification() },
+                onMockWifiToggle = { viewModel.triggerMockSystemToggle("Wi-Fi", true) },
+                onMockFlashlightToggle = { viewModel.triggerMockSystemToggle("Flashlight", true) },
+                onMockDndToggle = { viewModel.triggerMockSystemToggle("DND", true) },
+                onMockSilentToggle = { viewModel.triggerMockSystemToggle("Silent", true) },
+                onMockLowPowerToggle = { viewModel.triggerMockSystemToggle("Low Power", true) },
+                onClear = { viewModel.clearEvents() }
+            )
+        }
     }
 }
 
-// â”€ PERMISSION SECTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── PERMISSION SECTION ────────────────────────────────────────────────────────
 @Composable
 fun PermissionSection(
     isOverlayGranted: Boolean,
     isNotificationGranted: Boolean,
     isRecordAudioGranted: Boolean,
+    isAccessibilityGranted: Boolean,
+    isCalendarGranted: Boolean,
+    isLocationGranted: Boolean,
     onRequestOverlay: () -> Unit,
     onRequestNotification: () -> Unit,
-    onRequestRecordAudio: () -> Unit
+    onRequestRecordAudio: () -> Unit,
+    onRequestAccessibility: () -> Unit,
+    onRequestCalendar: () -> Unit,
+    onRequestLocation: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().animateContentSize(),
         shape = MaterialTheme.shapes.extraLarge,                // M3 ExtraLarge = 28dp
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
@@ -433,7 +517,7 @@ fun PermissionSection(
                             Button(
                                 onClick = onRequestOverlay,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                shape = MaterialTheme.shapes.extraLarge  // M3 Full/Pill
+                                shape = MaterialTheme.shapes.extraLarge
                             ) {
                                 Text("Grant", fontSize = 12.sp)
                             }
@@ -471,7 +555,121 @@ fun PermissionSection(
                             Button(
                                 onClick = onRequestNotification,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                shape = MaterialTheme.shapes.extraLarge  // M3 Full/Pill
+                                shape = MaterialTheme.shapes.extraLarge
+                            ) {
+                                Text("Grant", fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+
+                    // System Accessibility Service
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isAccessibilityGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
+                                contentDescription = null,
+                                tint = if (isAccessibilityGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("System Accessibility Service", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = if (isAccessibilityGranted) "Active" else "Requires Setup",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                        if (!isAccessibilityGranted) {
+                            Button(
+                                onClick = onRequestAccessibility,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = MaterialTheme.shapes.extraLarge
+                            ) {
+                                Text("Setup", fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+
+                    // Calendar access row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isCalendarGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
+                                contentDescription = null,
+                                tint = if (isCalendarGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("Calendar Access", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = if (isCalendarGranted) "Granted" else "Optional for events read",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                        if (!isCalendarGranted) {
+                            Button(
+                                onClick = onRequestCalendar,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = MaterialTheme.shapes.extraLarge
+                            ) {
+                                Text("Grant", fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+
+                    // Location access row (Weather)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isLocationGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
+                                contentDescription = null,
+                                tint = if (isLocationGranted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("Location Access", color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    text = if (isLocationGranted) "Granted" else "Optional for weather read",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                        if (!isLocationGranted) {
+                            Button(
+                                onClick = onRequestLocation,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = MaterialTheme.shapes.extraLarge
                             ) {
                                 Text("Grant", fontSize = 12.sp)
                             }
@@ -548,7 +746,7 @@ fun ServiceControlSection(
         ) {
             Column {
                 Text(
-                    "Capsular",
+                    "Capsular Service",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
@@ -562,11 +760,9 @@ fun ServiceControlSection(
             Switch(
                 checked = isServiceRunning,
                 onCheckedChange = {
-                    if (isPermissionsGranted || isServiceRunning) {
-                        onToggleService()
-                    }
+                    onToggleService()
                 },
-                enabled = isPermissionsGranted || isServiceRunning,
+                enabled = true,
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
                     checkedTrackColor = MaterialTheme.colorScheme.primary
@@ -657,11 +853,28 @@ fun PositionSection(
             }
 
             if (!isServiceRunning) {
-                Text(
-                    text = "âš ï¸ Start overlay service to enable Show Outline alignment directly on screen.",
-                    color = MaterialTheme.colorScheme.error,
-                    fontSize = 12.sp
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Warning,
+                        contentDescription = "Warning",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Start overlay service to enable Show Outline alignment directly on screen.",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
             // Camera Cutout Position
@@ -1088,6 +1301,7 @@ fun ToggleOptionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .pressClickEffect()
             .clickable { onCheckedChange(!checked) }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1120,16 +1334,18 @@ fun RadioOptionRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .pressClickEffect()
             .clickable { onClick() }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.Start
     ) {
-        Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
         RadioButton(
             selected = selected,
-            onClick = onClick
+            onClick = onClick,
+            modifier = Modifier.padding(end = 12.dp)
         )
+        Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
     }
 }
 
@@ -1304,8 +1520,8 @@ fun EventSimulatorSection(
     onMockLowBattery: () -> Unit,
     onMockFaceID: () -> Unit,
     onMockFaceIDFail: () -> Unit,
-    onMockApplePay: () -> Unit,
-    onMockAirDrop: () -> Unit,
+    onMockMobilePay: () -> Unit,
+    onMockQuickShare: () -> Unit,
     onMockBluetooth: () -> Unit,
     onMockFocusMode: () -> Unit,
     onMockOngoingCall: () -> Unit,
@@ -1313,11 +1529,12 @@ fun EventSimulatorSection(
     onMockScreenRecord: () -> Unit,
     onMockVoiceMemo: () -> Unit,
     onMockHotspot: () -> Unit,
-    onMockUber: () -> Unit,
-    onMockDelivery: () -> Unit,
+    onMockRideSharing: () -> Unit,
+    onMockFoodDelivery: () -> Unit,
     onMockMusic: () -> Unit,
     onMockTimer: () -> Unit,
     onMockStopwatch: () -> Unit,
+    onMockAlarm: () -> Unit,
     onMockNav: () -> Unit,
     onMockProgress: () -> Unit,
     onMockNotification: () -> Unit,
@@ -1346,7 +1563,7 @@ fun EventSimulatorSection(
             ) {
                 Column {
                     Text(
-                        "Event Simulator",
+                        "Mock Capsule",
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
@@ -1357,7 +1574,7 @@ fun EventSimulatorSection(
                         fontSize = 11.sp
                     )
                 }
-                // Hide / Show toggle â€” always visible
+                // Hide / Show toggle — always visible
                 IconButton(onClick = { simulatorExpanded = !simulatorExpanded }) {
                     Icon(
                         imageVector = if (simulatorExpanded) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
@@ -1375,8 +1592,8 @@ fun EventSimulatorSection(
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-                    // â”€â”€ Group 1: Calls & Live Activities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                    SimulatorGroup("ðŸ“ž  Calls & Live Activities") {
+                    // ── Group 1: Calls & Live Activities ─────────────
+                    SimulatorGroup("Calls & Live Activities") {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1389,8 +1606,8 @@ fun EventSimulatorSection(
                         }
                     }
 
-                    // â”€â”€ Group 2: Timers & Recording â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                    SimulatorGroup("â±  Timers & Recording") {
+                    // ── Group 2: Timers & Recording ───────────────────
+                    SimulatorGroup("Timers & Recording") {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1398,13 +1615,14 @@ fun EventSimulatorSection(
                         ) {
                             SimBtn(Icons.Rounded.Timer, "Timer (5m)", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockTimer)
                             SimBtn(Icons.Rounded.AvTimer, "Stopwatch", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockStopwatch)
+                            SimBtn(Icons.Rounded.Alarm, "Alarm", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockAlarm)
                             SimBtn(Icons.Rounded.FiberManualRecord, "Screen Record", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockScreenRecord)
                             SimBtn(Icons.Rounded.Mic, "Voice Record", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockVoiceMemo)
                         }
                     }
 
-                    // â”€â”€ Group 3: System Status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                    SimulatorGroup("ðŸ”‹  System Status") {
+                    // ── Group 3: System Status ────────────────────────
+                    SimulatorGroup("System Status") {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1417,8 +1635,8 @@ fun EventSimulatorSection(
                         }
                     }
 
-                    // â”€â”€ Group 4: Quick Toggles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                    SimulatorGroup("âš¡  Quick Toggles") {
+                    // ── Group 4: Quick Toggles ────────────────────────
+                    SimulatorGroup("Quick Toggles") {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1432,8 +1650,8 @@ fun EventSimulatorSection(
                         }
                     }
 
-                    // â”€â”€ Group 5: Notifications & Apps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                    SimulatorGroup("ðŸ’¬  Notifications & Apps") {
+                    // ── Group 5: Notifications & Apps ─────────────────
+                    SimulatorGroup("Notifications & Apps") {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1441,22 +1659,22 @@ fun EventSimulatorSection(
                         ) {
                             SimBtn(Icons.Rounded.Message, "Notification", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onMockNotification)
                             SimBtn(Icons.Rounded.Download, "App Download", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onMockProgress)
-                            SimBtn(Icons.Rounded.DirectionsCar, "Uber Ride", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onMockUber)
-                            SimBtn(Icons.Rounded.DeliveryDining, "Food Delivery", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onMockDelivery)
+                            SimBtn(Icons.Rounded.DirectionsCar, "Cab Service", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onMockRideSharing)
+                            SimBtn(Icons.Rounded.DeliveryDining, "Food Delivery", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, onMockFoodDelivery)
                         }
                     }
 
-                    // â”€â”€ Group 6: Authentication â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-                    SimulatorGroup("ðŸ”  Authentication") {
+                    // ── Group 6: Authentication ───────────────────────
+                    SimulatorGroup("Authentication") {
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            SimBtn(Icons.Rounded.Face, "Face ID âœ“", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockFaceID)
-                            SimBtn(Icons.Rounded.Face, "Face ID âœ—", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer, onMockFaceIDFail)
-                            SimBtn(Icons.Rounded.CreditCard, "Pay", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockApplePay)
-                            SimBtn(Icons.Rounded.WifiTethering, "Quick Share", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockAirDrop)
+                            SimBtn(Icons.Rounded.Face, "Face ID Success", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockFaceID)
+                            SimBtn(Icons.Rounded.Face, "Face ID Fail", MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer, onMockFaceIDFail)
+                            SimBtn(Icons.Rounded.CreditCard, "Mobile Pay", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockMobilePay)
+                            SimBtn(Icons.Rounded.WifiTethering, "Quick Share", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockQuickShare)
                             SimBtn(Icons.Rounded.Bedtime, "Focus Mode", MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.onPrimaryContainer, onMockFocusMode)
                         }
                     }
@@ -1548,6 +1766,31 @@ fun FlowRow(
         verticalArrangement = verticalArrangement,
         content = content
     )
+}
+
+fun Modifier.pressClickEffect(): Modifier = composed {
+    var pressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.96f else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.6f,
+            stiffness = Spring.StiffnessMediumLow
+        ),
+        label = "pressClickScale"
+    )
+    graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }.pointerInput(Unit) {
+        awaitPointerEventScope {
+            while (true) {
+                val down = awaitFirstDown(false)
+                pressed = true
+                waitForUpOrCancellation()
+                pressed = false
+            }
+        }
+    }
 }
 
 
