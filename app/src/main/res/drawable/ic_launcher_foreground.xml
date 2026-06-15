@@ -1,0 +1,59 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Capsule Bar app icon foreground — Material You design
+  Uses the M3 ExtraLarge (28dp) corner shape on the outer frame,
+  a full Pill (capsule) shape for the main element, and a
+  punch-hole circle to represent the camera cutout concept.
+  All coordinates are in 108x108 viewport (standard adaptive icon safe zone = 72x72 centered).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Squircle card frame (M3 ExtraLarge 28dp equivalent in icon scale) -->
+    <path
+        android:pathData="M 28,22 L 80,22 Q 86,22 86,28 L 86,80 Q 86,86 80,86 L 28,86 Q 22,86 22,80 L 22,28 Q 22,22 28,22 Z"
+        android:fillColor="#E8DEF8"
+        android:fillAlpha="0.25"/>
+
+    <!-- Main Capsule Pill (Full / Pill shape — the Capsule Bar concept) -->
+    <path
+        android:pathData="M 34,46 L 74,46 Q 82,46 82,54 Q 82,62 74,62 L 34,62 Q 26,62 26,54 Q 26,46 34,46 Z"
+        android:fillColor="#FFFFFF"/>
+
+    <!-- Camera punch-hole inside the pill (centered, representing the camera cutout) -->
+    <path
+        android:pathData="M 70,49 A 5,5 0 1,1 70,59 A 5,5 0 1,1 70,49 Z"
+        android:fillColor="#1C1B1F"/>
+
+    <!-- Small accent dot — left leading edge indicator (represents the leading content slot) -->
+    <path
+        android:pathData="M 38,52 A 2.5,2.5 0 1,1 38,57 A 2.5,2.5 0 1,1 38,52 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.60"/>
+
+    <!-- Visualizer bars on trailing edge — 4 bars at different heights -->
+    <!-- Bar 1 -->
+    <path
+        android:pathData="M 55,51 L 56.5,51 L 56.5,57 L 55,57 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.55"/>
+    <!-- Bar 2 -->
+    <path
+        android:pathData="M 58,49.5 L 59.5,49.5 L 59.5,58.5 L 58,58.5 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.70"/>
+    <!-- Bar 3 -->
+    <path
+        android:pathData="M 61,52 L 62.5,52 L 62.5,56 L 61,56 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.50"/>
+    <!-- Bar 4 -->
+    <path
+        android:pathData="M 64,50.5 L 65.5,50.5 L 65.5,57.5 L 64,57.5 Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.65"/>
+
+</vector>

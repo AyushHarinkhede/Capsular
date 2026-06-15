@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Monochrome / themed icon layer — Android 13+ uses this for wallpaper-tinted adaptive icons.
+  Uses a single flat white path so the system can tint it to any M3 dynamic color.
+  Shape: capsule pill + camera hole + 4-bar visualizer — identical concept to foreground.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Capsule pill outline (Full/Pill shape) -->
+    <path
+        android:pathData="M 34,46 L 74,46 Q 82,46 82,54 Q 82,62 74,62 L 34,62 Q 26,62 26,54 Q 26,46 34,46 Z"
+        android:fillColor="#FFFFFF"/>
+
+    <!-- Camera punch-hole (shows background color through) -->
+    <path
+        android:pathData="M 70,49 A 5,5 0 1,1 70,59 A 5,5 0 1,1 70,49 Z"
+        android:fillColor="#000000"/>
+
+    <!-- 4-bar visualizer — centered trailing edge -->
+    <path
+        android:pathData="M 54,51.5 L 55.5,51.5 L 55.5,56.5 L 54,56.5 Z
+                          M 57,50 L 58.5,50 L 58.5,58 L 57,58 Z
+                          M 60,52 L 61.5,52 L 61.5,56 L 60,56 Z
+                          M 63,50.5 L 64.5,50.5 L 64.5,57.5 L 63,57.5 Z"
+        android:fillColor="#000000"/>
+
+</vector>
