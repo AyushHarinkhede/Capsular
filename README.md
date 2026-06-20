@@ -1,4 +1,4 @@
-﻿<p align="center">
+<p align="center">
   <img src="app/src/main/res/drawable/logo.png" width="120" alt="Capsular Logo"/>
 </p>
 
@@ -111,6 +111,39 @@ The overlay uses **spring physics** (`dampingRatio=0.50`, `StiffnessMediumLow`) 
 - Android 8.0 (API 26) or higher
 - Punch-hole camera device (works best; pill shape adapts to any phone)
 - Android 12+ for full Material You Dynamic Color
+
+---
+
+## 🏆 Developer Achievements
+
+We celebrate milestones and contributions. Here are the achievements earned and levelled up during the design and development of **Capsular**:
+
+<p align="center">
+  <a href="https://github.com/AyushHarinkhede">
+    <img src="https://github.githubassets.com/assets/starstruck-default-b6610abad518.png" width="85" alt="Starstruck" title="Starstruck: Earned by gaining stars on repositories"/>
+  </a>
+  <a href="https://github.com/AyushHarinkhede">
+    <img src="https://github.githubassets.com/assets/pull-shark-default-498c279a747d.png" width="85" alt="Pull Shark x3" title="Pull Shark: Levelled up to x3 (Silver) for authoring and merging pull requests"/>
+  </a>
+  <a href="https://github.com/AyushHarinkhede">
+    <img src="https://github.githubassets.com/assets/pair-extraordinaire-default-579438a20e01.png" width="85" alt="Pair Extraordinaire x2" title="Pair Extraordinaire: Levelled up to x2 (Bronze) for co-authored commits"/>
+  </a>
+  <a href="https://github.com/AyushHarinkhede">
+    <img src="https://github.githubassets.com/assets/galaxy-brain-default-847262c21056.png" width="85" alt="Galaxy Brain x2" title="Galaxy Brain: Levelled up to x2 for accepted answers in Discussions"/>
+  </a>
+  <a href="https://github.com/AyushHarinkhede">
+    <img src="https://github.githubassets.com/assets/quickdraw-default-39c6aec8ff89.png" width="85" alt="Quickdraw" title="Quickdraw: Closed issues/PRs within 5 minutes"/>
+  </a>
+  <a href="https://github.com/AyushHarinkhede">
+    <img src="https://github.githubassets.com/assets/yolo-default-be0bbff04951.png" width="85" alt="YOLO" title="YOLO: Merged PRs without code review"/>
+  </a>
+</p>
+
+### 🚀 Special Edition Badges
+<p align="center">
+  <img src="https://img.shields.io/badge/Capsular_Lead-Ayush_Harinkhede-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Lead Developer Badge"/>
+  <img src="https://img.shields.io/badge/Co--Pilot-Antigravity_AI-6750A4?style=for-the-badge&logo=google&logoColor=white" alt="Antigravity AI Co-Pilot Badge"/>
+</p>
 
 ---
 

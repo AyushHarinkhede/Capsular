@@ -1,6 +1,10 @@
 package com.example.capsulebar.service
 
 import android.app.Notification
+import android.app.PendingIntent
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
@@ -8,17 +12,15 @@ import android.graphics.drawable.Drawable
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSession
+import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Build
+import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.example.capsulebar.data.CapsuleEvent
 import com.example.capsulebar.data.CapsuleSettings
 import com.example.capsulebar.data.CapsuleStateManager
-
-import android.media.session.MediaSessionManager
-import android.content.ComponentName
-import android.content.Context
 
 class CapsuleNotificationListener : NotificationListenerService() {
 
@@ -30,6 +32,7 @@ class CapsuleNotificationListener : NotificationListenerService() {
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         settings = CapsuleSettings(this)
         CapsuleStateManager.onMediaActionListener = { action ->
             handleMediaAction(action)
@@ -70,6 +73,9 @@ class CapsuleNotificationListener : NotificationListenerService() {
 
         val notification = sbn.notification
         val extras = notification.extras
+        val titleText = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+        val textText = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+        val combinedText = "${titleText.lowercase()} ${textText.lowercase()}"
 
         // 2. Intercept system/app Calls (incoming or ongoing)
         val template = extras?.getString(Notification.EXTRA_TEMPLATE) ?: ""
@@ -77,8 +83,8 @@ class CapsuleNotificationListener : NotificationListenerService() {
                 template.contains("CallStyle")
 
         if (isCallNotification) {
-            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "Active Call"
-            val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: "Call in progress"
+            val title = if (titleText.isNotEmpty()) titleText else "Active Call"
+            val text = if (textText.isNotEmpty()) textText else "Call in progress"
             
             // Check if it's an incoming call (by looking for Answer/Accept action button)
             var isIncomingCall = false
@@ -89,9 +95,11 @@ class CapsuleNotificationListener : NotificationListenerService() {
                 }
             }
 
+            val eventId = "call_${packageName}"
+            activeNotificationsMap[eventId] = sbn
             CapsuleStateManager.postEvent(
                 CapsuleEvent.Call(
-                    id = "call_${packageName}",
+                    id = eventId,
                     contactName = title,
                     durationText = text,
                     isIncoming = isIncomingCall,
@@ -102,21 +110,47 @@ class CapsuleNotificationListener : NotificationListenerService() {
             return // Skip generic notification display
         }
 
+        // 2b. Intercept system/app Alarms (firing or snooze/dismiss active)
+        val isAlarm = notification.category == Notification.CATEGORY_ALARM ||
+                packageName.contains("clock") && (combinedText.contains("alarm") || combinedText.contains("snooze") || combinedText.contains("dismiss"))
+        if (isAlarm) {
+            var isFiring = false
+            notification.actions?.forEach { action ->
+                val actionTitle = action.title.toString().lowercase()
+                if (actionTitle.contains("snooze") || actionTitle.contains("dismiss")) {
+                    isFiring = true
+                }
+            }
+            
+            if (isFiring) {
+                val eventId = "alarm_${packageName}"
+                activeNotificationsMap[eventId] = sbn
+                CapsuleStateManager.postEvent(
+                    CapsuleEvent.Alarm(
+                        id = eventId,
+                        timeText = if (titleText.isNotEmpty()) titleText else "Alarm",
+                        label = if (textText.isNotEmpty()) textText else "Wake up!",
+                        isFiring = true
+                    )
+                )
+                return // Skip generic notification display
+            }
+        }
+
         // 4. Detect Screen Recording notification (system media projection service)
         val isOngoingService = (notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0 ||
                                (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
-        val titleStr = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.lowercase() ?: ""
-        val textStr  = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.lowercase()  ?: ""
-        val combinedText = "$titleStr $textStr"
 
         // Screen recording — detected via system packages or title keywords
         val isScreenRecordPkg = packageName.contains("screenrecord") ||
                                 packageName == "com.android.systemui" && combinedText.contains("screen record")
         val isScreenRecordTitle = combinedText.contains("screen record")
         if (isOngoingService && (isScreenRecordPkg || isScreenRecordTitle)) {
+            val eventId = "recording_screen"
+            activeNotificationsMap[eventId] = sbn
             CapsuleStateManager.postEvent(
                 CapsuleEvent.Recording(
-                    id = "recording_screen",
+                    id = eventId,
                     type = "screen",
                     durationText = "Recording"
                 )
@@ -131,9 +165,11 @@ class CapsuleNotificationListener : NotificationListenerService() {
                             combinedText.contains("audio") || combinedText.contains("sound") ||
                             combinedText.contains("mic"))
         if (isOngoingService && (isRecorderPkg || isRecordTitle)) {
+            val eventId = "recording_voice"
+            activeNotificationsMap[eventId] = sbn
             CapsuleStateManager.postEvent(
                 CapsuleEvent.Recording(
-                    id = "recording_voice",
+                    id = eventId,
                     type = "voice",
                     durationText = "Recording"
                 )
@@ -166,9 +202,11 @@ class CapsuleNotificationListener : NotificationListenerService() {
                         if (c != null) a * 3600 + b * 60 + c else a * 60 + b
                     } else 0L
 
+                    val eventId = "timer_${sbn.id}"
+                    activeNotificationsMap[eventId] = sbn
                     CapsuleStateManager.postEvent(
                         CapsuleEvent.Timer(
-                            id = "timer_${sbn.id}",
+                            id = eventId,
                             label = if (rawTitle.lowercase().contains("timer")) rawTitle else "Timer",
                             remainingSeconds = remainingSecs,
                             isRunning = true
@@ -187,9 +225,11 @@ class CapsuleNotificationListener : NotificationListenerService() {
                         if (c != null) a * 3600 + b * 60 + c else a * 60 + b
                     } else 0L
 
+                    val eventId = "stopwatch_${sbn.id}"
+                    activeNotificationsMap[eventId] = sbn
                     CapsuleStateManager.postEvent(
                         CapsuleEvent.Stopwatch(
-                            id = "stopwatch_${sbn.id}",
+                            id = eventId,
                             elapsedSeconds = elapsedSecs,
                             isRunning = true,
                             label = "Stopwatch"
@@ -218,6 +258,8 @@ class CapsuleNotificationListener : NotificationListenerService() {
             val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
             val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
             if (title.isNotEmpty() || text.isNotEmpty()) {
+                val eventId = "navigation"
+                activeNotificationsMap[eventId] = sbn
                 CapsuleStateManager.postEvent(
                     CapsuleEvent.Navigation(
                         instruction = title,
@@ -230,9 +272,11 @@ class CapsuleNotificationListener : NotificationListenerService() {
             val current = extras.getInt(Notification.EXTRA_PROGRESS, 0)
             val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "Downloading"
             if (max > 0) {
+                val eventId = "progress_${packageName}"
+                activeNotificationsMap[eventId] = sbn
                 CapsuleStateManager.postEvent(
                     CapsuleEvent.Progress(
-                        id = "progress_${packageName}",
+                        id = eventId,
                         title = title,
                         progress = current,
                         max = max
@@ -266,9 +310,11 @@ class CapsuleNotificationListener : NotificationListenerService() {
                         e.printStackTrace()
                     }
 
+                    val eventId = "notification_${packageName}_${sbn.id}"
+                    activeNotificationsMap[eventId] = sbn
                     CapsuleStateManager.postEvent(
                         CapsuleEvent.Notification(
-                            id = "notification_${packageName}_${sbn.id}",
+                            id = eventId,
                             packageName = packageName,
                             appName = appLabel,
                             title = title,
@@ -292,6 +338,11 @@ class CapsuleNotificationListener : NotificationListenerService() {
         if (isCallNotification) {
             CapsuleStateManager.removeEvent("call_${packageName}")
             CapsuleStateManager.removeEvent("call") // Fallback
+        }
+
+        if (packageName.contains("clock") || notification.category == Notification.CATEGORY_ALARM) {
+            CapsuleStateManager.removeEvent("alarm_${packageName}")
+            CapsuleStateManager.removeEvent("alarm") // Fallback
         }
 
         if (activeMediaControllers.containsKey(packageName)) {
@@ -336,6 +387,17 @@ class CapsuleNotificationListener : NotificationListenerService() {
 
         CapsuleStateManager.removeEvent("progress_${packageName}")
         CapsuleStateManager.removeEvent("notification_${packageName}_${sbn.id}")
+
+        // Clean from active map
+        activeNotificationsMap.remove("call_${packageName}")
+        activeNotificationsMap.remove("alarm_${packageName}")
+        activeNotificationsMap.remove("recording_screen")
+        activeNotificationsMap.remove("recording_voice")
+        activeNotificationsMap.remove("timer_${sbn.id}")
+        activeNotificationsMap.remove("stopwatch_${sbn.id}")
+        activeNotificationsMap.remove("navigation")
+        activeNotificationsMap.remove("progress_${packageName}")
+        activeNotificationsMap.remove("notification_${packageName}_${sbn.id}")
     }
 
     private fun setupMediaController(packageName: String, token: MediaSession.Token) {
@@ -460,7 +522,6 @@ class CapsuleNotificationListener : NotificationListenerService() {
     }
 
     private fun handleMediaAction(action: String) {
-        // Try to trigger action on the currently playing controller first, or fallback to first active controller
         val controller = activeMediaControllers.values.firstOrNull {
             it.playbackState?.state == PlaybackState.STATE_PLAYING
         } ?: activeMediaControllers.values.firstOrNull() ?: return
@@ -491,6 +552,69 @@ class CapsuleNotificationListener : NotificationListenerService() {
         }
         activeMediaControllers.clear()
         controllerCallbacks.clear()
+        instance = null
         super.onDestroy()
     }
+
+    companion object {
+        private var instance: CapsuleNotificationListener? = null
+        val activeNotificationsMap = mutableMapOf<String, StatusBarNotification>()
+
+        fun replyToNotification(eventId: String, text: String): Boolean {
+            val sbn = activeNotificationsMap[eventId] ?: return false
+            val notification = sbn.notification
+            val actions = notification.actions ?: return false
+            
+            for (action in actions) {
+                val remoteInputs = action.remoteInputs ?: continue
+                for (remoteInput in remoteInputs) {
+                    val bundle = Bundle().apply {
+                        putCharSequence(remoteInput.resultKey, text)
+                    }
+                    val intent = Intent()
+                    android.app.RemoteInput.addResultsToIntent(arrayOf(remoteInput), intent, bundle)
+                    try {
+                        action.actionIntent.send(instance, 0, intent)
+                        return true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+            return false
+        }
+
+        fun dismissNotification(eventId: String): Boolean {
+            val sbn = activeNotificationsMap[eventId] ?: return false
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    instance?.cancelNotification(sbn.key)
+                } else {
+                    @Suppress("DEPRECATION")
+                    instance?.cancelNotification(sbn.packageName, sbn.tag, sbn.id)
+                }
+                return true
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            return false
+        }
+
+        fun triggerNotificationAction(eventId: String, actionTitle: String): Boolean {
+            val sbn = activeNotificationsMap[eventId] ?: return false
+            val actions = sbn.notification.actions ?: return false
+            for (action in actions) {
+                if (action.title.toString().lowercase().contains(actionTitle.lowercase())) {
+                    try {
+                        action.actionIntent.send()
+                        return true
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+            return false
+        }
+    }
 }
+

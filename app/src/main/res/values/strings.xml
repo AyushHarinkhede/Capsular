@@ -1,1 +1,5 @@
-﻿<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Capsular</string></resources>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Capsular</string>
+    <string name="accessibility_description">Capsular runs in the background to monitor state transitions and display overlay content around the camera cutout.</string>
+</resources>

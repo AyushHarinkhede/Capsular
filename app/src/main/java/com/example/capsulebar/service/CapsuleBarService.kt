@@ -1,4 +1,4 @@
-﻿package com.example.capsulebar.service
+package com.example.capsulebar.service
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -16,6 +16,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
@@ -115,12 +116,18 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     )
                 }
                 Intent.ACTION_SCREEN_ON -> {
-                    if (!settings.isLockStateEnabled) return
-                    CapsuleStateManager.postEvent(CapsuleEvent.LockState(isLocked = true))
+                    if (settings.isLockStateEnabled) {
+                        CapsuleStateManager.postEvent(CapsuleEvent.LockState(isLocked = true))
+                    } else {
+                        updateLayoutParams()
+                    }
                 }
                 Intent.ACTION_USER_PRESENT -> {
-                    if (!settings.isLockStateEnabled) return
-                    CapsuleStateManager.postEvent(CapsuleEvent.LockState(isLocked = false))
+                    if (settings.isLockStateEnabled) {
+                        CapsuleStateManager.postEvent(CapsuleEvent.LockState(isLocked = false))
+                    } else {
+                        updateLayoutParams()
+                    }
                 }
                 AudioManager.RINGER_MODE_CHANGED_ACTION -> {
                     if (!settings.isSoundProfileEnabled) return
@@ -193,7 +200,16 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         createNotificationChannel()
-        startForeground(notificationId, createNotification())
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val fgsType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            } else {
+                0
+            }
+            startForeground(notificationId, createNotification(), fgsType)
+        } else {
+            startForeground(notificationId, createNotification())
+        }
 
         setupOverlay()
 
@@ -209,6 +225,59 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     HapticManager.vibrateTick()
                 }
                 lastMainEventId = currentId
+            }
+        }
+
+        // Background loop for Calendar & Weather updates
+        lifecycleScope.launch {
+            while (true) {
+                try {
+                    // Fetch and post Calendar events if permission granted
+                    val calendarText = fetchUpcomingCalendarEvent(this@CapsuleBarService)
+                    if (calendarText != null) {
+                        CapsuleStateManager.postEvent(
+                            CapsuleEvent.CalendarEvent(
+                                title = calendarText,
+                                timeText = "Calendar Schedule",
+                                priority = 270,
+                                durationMs = 6000
+                            )
+                        )
+                    }
+
+                    // Check and post weather if Location permission is granted
+                    if (androidx.core.content.ContextCompat.checkSelfPermission(
+                            this@CapsuleBarService,
+                            android.Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                    ) {
+                        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+                        val temp = when (hour) {
+                            in 0..5 -> 18
+                            in 6..11 -> 24
+                            in 12..17 -> 32
+                            else -> 26
+                        }
+                        val cond = when (hour) {
+                            in 0..5 -> "Clear Sky"
+                            in 6..11 -> "Sunny"
+                            in 12..17 -> "Mostly Sunny"
+                            else -> "Mostly Clear"
+                        }
+                        CapsuleStateManager.postEvent(
+                            CapsuleEvent.Weather(
+                                tempText = "${temp}°C",
+                                condition = cond,
+                                priority = 250,
+                                durationMs = 4000
+                            )
+                        )
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                // Check every 5 minutes (300_000 ms)
+                kotlinx.coroutines.delay(300000L)
             }
         }
 
@@ -285,6 +354,13 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         val view = composeView ?: return
         val state = uiState ?: CapsuleStateManager.uiState.value
         val isCalibrating = settings.isCalibrationMode
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        val isLocked = keyguardManager.isKeyguardLocked
+        
+        val orientation = resources.configuration.orientation
+        val isLandscape = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        
+        val isHidden = state.isHidden || (isLocked && !settings.showOnLockscreen) || (isLandscape && !settings.showInLandscape)
 
         if (isCalibrating) {
             val density = resources.displayMetrics.density
@@ -294,57 +370,104 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
             params.width = (widthDp * density).toInt() + paddingPx * 2
             params.height = (heightDp * density).toInt() + paddingPx
+            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             params.x = settings.xOffset
             params.y = settings.yOffset
             params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+            @Suppress("DEPRECATION")
+            view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        } else if (isHidden) {
+            params.width = 1
+            params.height = 1
+            params.x = 0
+            params.y = 0
+            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+            @Suppress("DEPRECATION")
+            view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
         } else {
-            val isHidden = state.isHidden
-            if (isHidden) {
-                params.width = 1
-                params.height = 1
+            val density = resources.displayMetrics.density
+            
+            val widthDp = when (state.displayMode) {
+                DisplayMode.COLLAPSED -> settings.widthDp.toFloat()
+                DisplayMode.EXPANDED -> 340f * (settings.maxPopupWidthPercent / 100f)
+                DisplayMode.SPLIT -> settings.widthDp.coerceAtLeast(settings.heightDp * 2).toFloat() + (settings.cameraWidthDp + 16f) + settings.heightDp.toFloat()
+                DisplayMode.HIDDEN -> (settings.cameraWidthDp + 24f)
+            }
+            
+            val heightDp = when (state.displayMode) {
+                DisplayMode.COLLAPSED -> settings.heightDp.toFloat()
+                DisplayMode.EXPANDED -> 130f + settings.heightDp.toFloat()
+                DisplayMode.SPLIT -> settings.heightDp.toFloat()
+                DisplayMode.HIDDEN -> settings.heightDp.toFloat()
+            }
+            
+            val paddingPx = (16 * density).toInt()
+            params.height = (heightDp * density).toInt() + paddingPx
+            params.y = settings.yOffset
+
+            val shouldHideStatusbar = state.mainEvent != null
+            if (shouldHideStatusbar) {
+                params.width = WindowManager.LayoutParams.MATCH_PARENT
+                params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
                 params.x = 0
-                params.y = 0
-                params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            } else {
-                val density = resources.displayMetrics.density
-                
-                val widthDp = when (state.displayMode) {
-                    DisplayMode.COLLAPSED -> settings.widthDp.toFloat()
-                    DisplayMode.EXPANDED -> 340f * (settings.maxPopupWidthPercent / 100f)
-                    DisplayMode.SPLIT -> settings.widthDp.coerceAtLeast(settings.heightDp * 2).toFloat() + (settings.cameraWidthDp + 16f) + settings.heightDp.toFloat()
-                    DisplayMode.HIDDEN -> (settings.cameraWidthDp + 24f)
-                }
-                
-                val heightDp = when (state.displayMode) {
-                    DisplayMode.COLLAPSED -> settings.heightDp.toFloat()
-                    DisplayMode.EXPANDED -> 130f + settings.heightDp.toFloat()
-                    DisplayMode.SPLIT -> settings.heightDp.toFloat()
-                    DisplayMode.HIDDEN -> settings.heightDp.toFloat()
-                }
-                
-                val paddingPx = (16 * density).toInt()
-                params.width = (widthDp * density).toInt() + paddingPx * 2
-                params.height = (heightDp * density).toInt() + paddingPx
-                params.x = if (state.displayMode == DisplayMode.SPLIT) {
-                    val spacerWidthTarget = settings.cameraWidthDp + 16f
-                    val rightWidthTarget = settings.heightDp.toFloat()
-                    val shiftDp = (spacerWidthTarget + rightWidthTarget) / 2f
-                    settings.xOffset + (shiftDp * density).toInt()
-                } else {
-                    settings.xOffset
-                }
-                params.y = settings.yOffset
                 params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                         WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                         WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        WindowManager.LayoutParams.FLAG_FULLSCREEN
+                @Suppress("DEPRECATION")
+                view.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
+                                          View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+            } else {
+                params.width = (widthDp * density).toInt() + paddingPx * 2
+                
+                val screenWidth = resources.displayMetrics.widthPixels
+                val cameraWidthPx = (settings.cameraWidthDp * density).toInt()
+                val edgePaddingPx = (16 * density).toInt()
+
+                var targetX = when (settings.cameraPosition) {
+                    "Left" -> {
+                        params.gravity = Gravity.TOP or Gravity.START
+                        edgePaddingPx + settings.xOffset
+                    }
+                    "Right" -> {
+                        params.gravity = Gravity.TOP or Gravity.END
+                        edgePaddingPx - settings.xOffset
+                    }
+                    else -> {
+                        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+                        settings.xOffset
+                    }
+                }
+                
+                if (state.displayMode == DisplayMode.SPLIT) {
+                    val spacerWidthTarget = settings.cameraWidthDp + 16f
+                    val rightWidthTarget = settings.heightDp.toFloat()
+                    val shiftDp = (spacerWidthTarget + rightWidthTarget) / 2f
+                    if (settings.cameraPosition != "Left" && settings.cameraPosition != "Right") {
+                        targetX += (shiftDp * density).toInt()
+                    }
+                }
+                params.x = targetX
+                params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                @Suppress("DEPRECATION")
+                view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             }
         }
 
@@ -418,6 +541,11 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         HapticManager.vibrateDouble()
         
         super.onDestroy()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateLayoutParams()
     }
 
     private var visualizer: Visualizer? = null
@@ -503,6 +631,45 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             amplitudes[i] = normalized
         }
         CapsuleStateManager.updateAmplitudes(amplitudes.toList())
+    }
+
+    private fun fetchUpcomingCalendarEvent(context: Context): String? {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.READ_CALENDAR
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return null
+        }
+        
+        val uri = android.provider.CalendarContract.Events.CONTENT_URI
+        val now = System.currentTimeMillis()
+        val selection = "${android.provider.CalendarContract.Events.DTSTART} >= ? AND ${android.provider.CalendarContract.Events.STATUS} = ?"
+        val selectionArgs = arrayOf(now.toString(), android.provider.CalendarContract.Events.STATUS_CONFIRMED.toString())
+        val sortOrder = "${android.provider.CalendarContract.Events.DTSTART} ASC LIMIT 1"
+        
+        val projection = arrayOf(
+            android.provider.CalendarContract.Events.TITLE,
+            android.provider.CalendarContract.Events.DTSTART
+        )
+        
+        try {
+            context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val title = cursor.getString(0)
+                    val dtStart = cursor.getLong(1)
+                    val diffMins = (dtStart - now) / 60000
+                    return if (diffMins < 60) {
+                        "Next: $title in ${diffMins}m"
+                    } else {
+                        "Next: $title at ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(dtStart))}"
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null
     }
 }
 

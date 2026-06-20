@@ -138,7 +138,7 @@ sealed interface CapsuleEvent {
 
     data class Delivery(
         override val id: String,
-        val appName: String, // "Uber", "Ola", "Zomato", "Swiggy"
+        val appName: String, // "Ride Sharing", "Food Delivery", etc.
         val statusText: String,
         val progress: Float, // 0.0f to 1.0f
         override val priority: Int = 300,
@@ -162,4 +162,40 @@ sealed interface CapsuleEvent {
         override val priority: Int = 340,
         override val durationMs: Long = 0  // persistent until dismissed
     ) : CapsuleEvent
+
+    data class HourlyTracker(
+        override val id: String = "hourly_tracker",
+        val trackerName: String,
+        val countText: String,
+        val progress: Float, // 0.0f to 1.0f
+        override val priority: Int = 260,
+        override val durationMs: Long = 0
+    ) : CapsuleEvent
+
+    data class CalendarEvent(
+        override val id: String = "calendar_event",
+        val title: String,
+        val timeText: String,
+        val location: String = "",
+        override val priority: Int = 270,
+        override val durationMs: Long = 6000
+    ) : CapsuleEvent
+
+    data class Weather(
+        override val id: String = "weather",
+        val tempText: String,
+        val condition: String,
+        override val priority: Int = 250,
+        override val durationMs: Long = 4000
+    ) : CapsuleEvent
+
+    data class Alarm(
+        override val id: String = "alarm",
+        val timeText: String,
+        val label: String,
+        val isFiring: Boolean,
+        override val priority: Int = 950,
+        override val durationMs: Long = 0
+    ) : CapsuleEvent
 }
+

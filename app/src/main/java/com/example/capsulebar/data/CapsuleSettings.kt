@@ -198,10 +198,6 @@ class CapsuleSettings(context: Context) {
         get() = prefs.getBoolean("hide_on_notification_panel", true)
         set(value) = prefs.edit().putBoolean("hide_on_notification_panel", value).apply()
 
-    var hideStatusbar: Boolean
-        get() = prefs.getBoolean("hide_statusbar", true)
-        set(value) = prefs.edit().putBoolean("hide_statusbar", value).apply()
-
     var notificationCountOption: Int
         get() = prefs.getInt("notification_count_option", 1)
         set(value) = prefs.edit().putInt("notification_count_option", value).apply()
@@ -222,4 +218,12 @@ class CapsuleSettings(context: Context) {
     var splitPosition: String
         get() = prefs.getString("split_position", "Right") ?: "Right"
         set(value) = prefs.edit().putString("split_position", value).apply()
+
+    var nfcWristWatchTagId: String
+        get() = prefs.getString("nfc_wrist_watch_tag_id", "") ?: ""
+        set(value) = prefs.edit().putString("nfc_wrist_watch_tag_id", value).apply()
+
+    var nfcChetakTagId: String
+        get() = prefs.getString("nfc_chetak_tag_id", "") ?: ""
+        set(value) = prefs.edit().putString("nfc_chetak_tag_id", value).apply()
 }
