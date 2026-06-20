@@ -174,9 +174,6 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _hideOnNotificationPanel = MutableStateFlow(settings.hideOnNotificationPanel)
     val hideOnNotificationPanel: StateFlow<Boolean> = _hideOnNotificationPanel.asStateFlow()
 
-    private val _hideStatusbar = MutableStateFlow(settings.hideStatusbar)
-    val hideStatusbar: StateFlow<Boolean> = _hideStatusbar.asStateFlow()
-
     private val _notificationCountOption = MutableStateFlow(settings.notificationCountOption)
     val notificationCountOption: StateFlow<Int> = _notificationCountOption.asStateFlow()
 
@@ -191,6 +188,45 @@ class MainScreenViewModel(context: Context) : ViewModel() {
 
     private val _splitPosition = MutableStateFlow(settings.splitPosition)
     val splitPosition: StateFlow<String> = _splitPosition.asStateFlow()
+
+    private val _nfcWristWatchTagId = MutableStateFlow(settings.nfcWristWatchTagId)
+    val nfcWristWatchTagId: StateFlow<String> = _nfcWristWatchTagId.asStateFlow()
+
+    private val _nfcChetakTagId = MutableStateFlow(settings.nfcChetakTagId)
+    val nfcChetakTagId: StateFlow<String> = _nfcChetakTagId.asStateFlow()
+
+    private val _activeRegistrationTask = MutableStateFlow<String?>(null)
+    val activeRegistrationTask: StateFlow<String?> = _activeRegistrationTask.asStateFlow()
+
+    fun startNfcRegistration(task: String) {
+        _activeRegistrationTask.value = task
+    }
+
+    fun cancelNfcRegistration() {
+        _activeRegistrationTask.value = null
+    }
+
+    fun bindNfcTag(tagId: String) {
+        val task = _activeRegistrationTask.value ?: return
+        if (task == "wrist_watch") {
+            settings.nfcWristWatchTagId = tagId
+            _nfcWristWatchTagId.value = tagId
+        } else if (task == "chetak") {
+            settings.nfcChetakTagId = tagId
+            _nfcChetakTagId.value = tagId
+        }
+        _activeRegistrationTask.value = null
+    }
+
+    fun clearNfcTag(task: String) {
+        if (task == "wrist_watch") {
+            settings.nfcWristWatchTagId = ""
+            _nfcWristWatchTagId.value = ""
+        } else if (task == "chetak") {
+            settings.nfcChetakTagId = ""
+            _nfcChetakTagId.value = ""
+        }
+    }
 
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         when (key) {
@@ -230,12 +266,13 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             "quick_access_apps" -> _quickAccessApps.value = settings.quickAccessApps
             "show_on_lockscreen" -> _showOnLockscreen.value = settings.showOnLockscreen
             "hide_on_notification_panel" -> _hideOnNotificationPanel.value = settings.hideOnNotificationPanel
-            "hide_statusbar" -> _hideStatusbar.value = settings.hideStatusbar
             "notification_count_option" -> _notificationCountOption.value = settings.notificationCountOption
             "auto_hide_small_popup_hours" -> _autoHideSmallPopupHours.value = settings.autoHideSmallPopupHours
             "auto_hide_expanded_popup_sec" -> _autoHideExpandedPopupSec.value = settings.autoHideExpandedPopupSec
             "hide_when_touching_outside" -> _hideWhenTouchingOutside.value = settings.hideWhenTouchingOutside
             "split_position" -> _splitPosition.value = settings.splitPosition
+            "nfc_wrist_watch_tag_id" -> _nfcWristWatchTagId.value = settings.nfcWristWatchTagId
+            "nfc_chetak_tag_id" -> _nfcChetakTagId.value = settings.nfcChetakTagId
         }
     }
 
@@ -817,11 +854,6 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     fun toggleHideOnNotificationPanel(value: Boolean) {
         settings.hideOnNotificationPanel = value
         _hideOnNotificationPanel.value = value
-    }
-
-    fun toggleHideStatusbar(value: Boolean) {
-        settings.hideStatusbar = value
-        _hideStatusbar.value = value
     }
 
     fun updateNotificationCountOption(value: Int) {

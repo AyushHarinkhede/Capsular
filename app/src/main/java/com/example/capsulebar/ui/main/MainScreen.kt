@@ -47,6 +47,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import com.example.capsulebar.R
+import com.example.capsulebar.data.CapsuleStateManager
 import java.io.File
 import java.io.FileOutputStream
 import androidx.compose.ui.composed
@@ -158,12 +159,14 @@ fun MainScreen(
     val quickAccessApps by viewModel.quickAccessApps.collectAsStateWithLifecycle()
     val showOnLockscreen by viewModel.showOnLockscreen.collectAsStateWithLifecycle()
     val hideOnNotificationPanel by viewModel.hideOnNotificationPanel.collectAsStateWithLifecycle()
-    val hideStatusbar by viewModel.hideStatusbar.collectAsStateWithLifecycle()
     val notificationCountOption by viewModel.notificationCountOption.collectAsStateWithLifecycle()
     val autoHideSmallPopupHours by viewModel.autoHideSmallPopupHours.collectAsStateWithLifecycle()
     val autoHideExpandedPopupSec by viewModel.autoHideExpandedPopupSec.collectAsStateWithLifecycle()
     val hideWhenTouchingOutside by viewModel.hideWhenTouchingOutside.collectAsStateWithLifecycle()
     val splitPosition by viewModel.splitPosition.collectAsStateWithLifecycle()
+    val nfcWristWatchTagId by viewModel.nfcWristWatchTagId.collectAsStateWithLifecycle()
+    val nfcChetakTagId by viewModel.nfcChetakTagId.collectAsStateWithLifecycle()
+    val activeRegistrationTask by viewModel.activeRegistrationTask.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -373,7 +376,6 @@ fun MainScreen(
                 quickAccessApps = quickAccessApps,
                 showOnLockscreen = showOnLockscreen,
                 hideOnNotificationPanel = hideOnNotificationPanel,
-                hideStatusbar = hideStatusbar,
                 notificationCountOption = notificationCountOption,
                 autoHideSmallPopupHours = autoHideSmallPopupHours,
                 autoHideExpandedPopupSec = autoHideExpandedPopupSec,
@@ -387,11 +389,29 @@ fun MainScreen(
                 onQuickAccessAppsToggle = { viewModel.toggleQuickAccessApps(it) },
                 onShowOnLockscreenToggle = { viewModel.toggleShowOnLockscreen(it) },
                 onHideOnNotificationPanelToggle = { viewModel.toggleHideOnNotificationPanel(it) },
-                onHideStatusbarToggle = { viewModel.toggleHideStatusbar(it) },
                 onNotificationCountOptionChanged = { viewModel.updateNotificationCountOption(it) },
                 onAutoHideSmallPopupHoursChanged = { viewModel.updateAutoHideSmallPopupHours(it) },
                 onAutoHideExpandedPopupSecChanged = { viewModel.updateAutoHideExpandedPopupSec(it) },
                 onHideWhenTouchingOutsideToggle = { viewModel.toggleHideWhenTouchingOutside(it) }
+            )
+        }
+
+        // ── NFC TASKS ────────────────────────────────────────────────────────────
+        Box(
+            modifier = Modifier
+                .widthIn(max = 440.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+        ) {
+            NfcTasksSection(
+                nfcWristWatchTagId = nfcWristWatchTagId,
+                nfcChetakTagId = nfcChetakTagId,
+                onBindWristWatch = { viewModel.startNfcRegistration("wrist_watch") },
+                onBindChetak = { viewModel.startNfcRegistration("chetak") },
+                onClearWristWatch = { viewModel.clearNfcTag("wrist_watch") },
+                onClearChetak = { viewModel.clearNfcTag("chetak") },
+                onSimulateWristWatch = { CapsuleStateManager.processNfcTag(context, "MOCK_WRIST_WATCH_TAG") },
+                onSimulateChetak = { CapsuleStateManager.processNfcTag(context, "MOCK_CHETAK_TAG") }
             )
         }
 
@@ -431,6 +451,37 @@ fun MainScreen(
                 onMockSilentToggle = { viewModel.triggerMockSystemToggle("Silent", true) },
                 onMockLowPowerToggle = { viewModel.triggerMockSystemToggle("Low Power", true) },
                 onClear = { viewModel.clearEvents() }
+            )
+        }
+
+        if (activeRegistrationTask != null) {
+            val taskName = if (activeRegistrationTask == "wrist_watch") "Wrist Watch Task" else "Chetak Task"
+            AlertDialog(
+                onDismissRequest = { viewModel.cancelNfcRegistration() },
+                title = { Text("Bind NFC Tag") },
+                text = {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Nfc,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp).padding(bottom = 16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            "Approach your NFC tag to the back of the phone to bind it to: $taskName.\n\n(Or click 'Test Scan' below to simulate a scan)",
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { viewModel.cancelNfcRegistration() }) {
+                        Text("Cancel")
+                    }
+                }
             )
         }
     }
@@ -1411,7 +1462,6 @@ fun GeneralSection(
     quickAccessApps: Boolean,
     showOnLockscreen: Boolean,
     hideOnNotificationPanel: Boolean,
-    hideStatusbar: Boolean,
     notificationCountOption: Int,
     autoHideSmallPopupHours: Int,
     autoHideExpandedPopupSec: Int,
@@ -1425,7 +1475,6 @@ fun GeneralSection(
     onQuickAccessAppsToggle: (Boolean) -> Unit,
     onShowOnLockscreenToggle: (Boolean) -> Unit,
     onHideOnNotificationPanelToggle: (Boolean) -> Unit,
-    onHideStatusbarToggle: (Boolean) -> Unit,
     onNotificationCountOptionChanged: (Int) -> Unit,
     onAutoHideSmallPopupHoursChanged: (Int) -> Unit,
     onAutoHideExpandedPopupSecChanged: (Int) -> Unit,
@@ -1463,7 +1512,6 @@ fun GeneralSection(
             ToggleOptionRow("Quick Access Apps", "Quickly access your favorite apps. Just tap the popup to show the apps. Long press to hide the popup and take a screenshot", quickAccessApps, onQuickAccessAppsToggle)
             ToggleOptionRow("Show on lockscreen", "Show the popup on lockscreen", showOnLockscreen, onShowOnLockscreenToggle)
             ToggleOptionRow("Notification panel", "Hide the popup when the notification panel is visible", hideOnNotificationPanel, onHideOnNotificationPanelToggle)
-            ToggleOptionRow("Hide statusbar", "Hide the statusbar when a system event popup opens", hideStatusbar, onHideStatusbarToggle)
 
             HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
 
@@ -1788,6 +1836,152 @@ fun Modifier.pressClickEffect(): Modifier = composed {
                 pressed = true
                 waitForUpOrCancellation()
                 pressed = false
+            }
+        }
+    }
+}
+
+@Composable
+fun NfcTasksSection(
+    nfcWristWatchTagId: String,
+    nfcChetakTagId: String,
+    onBindWristWatch: () -> Unit,
+    onBindChetak: () -> Unit,
+    onClearWristWatch: () -> Unit,
+    onClearChetak: () -> Unit,
+    onSimulateWristWatch: () -> Unit,
+    onSimulateChetak: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                "NFC Tasks",
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
+
+            // Wrist Watch Task
+            Column {
+                Text(
+                    "Wrist Watch Task (Sound Profile Toggle)",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    "Scans to toggle sound profile: Ring <-> Vibrate",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (nfcWristWatchTagId.isNotEmpty()) {
+                        Text(
+                            "Bound tag: $nfcWristWatchTagId",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconButton(onClick = onClearWristWatch) {
+                                Icon(Icons.Rounded.Delete, contentDescription = "Clear tag ID", tint = MaterialTheme.colorScheme.error)
+                            }
+                            Button(onClick = onSimulateWristWatch) {
+                                Text("Test Scan", fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        Text(
+                            "Not bound",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = onBindWristWatch) {
+                                Text("Bind Tag", fontSize = 12.sp)
+                            }
+                            Button(
+                                onClick = onSimulateWristWatch,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                            ) {
+                                Text("Test Scan", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+
+            // Chetak Task
+            Column {
+                Text(
+                    "Chetak Task (Bluetooth + Launch App)",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    "Scans to turn on Bluetooth and launch Chetak App/Oto Music (after 2s delay)",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (nfcChetakTagId.isNotEmpty()) {
+                        Text(
+                            "Bound tag: $nfcChetakTagId",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconButton(onClick = onClearChetak) {
+                                Icon(Icons.Rounded.Delete, contentDescription = "Clear tag ID", tint = MaterialTheme.colorScheme.error)
+                            }
+                            Button(onClick = onSimulateChetak) {
+                                Text("Test Scan", fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        Text(
+                            "Not bound",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = onBindChetak) {
+                                Text("Bind Tag", fontSize = 12.sp)
+                            }
+                            Button(
+                                onClick = onSimulateChetak,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                            ) {
+                                Text("Test Scan", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

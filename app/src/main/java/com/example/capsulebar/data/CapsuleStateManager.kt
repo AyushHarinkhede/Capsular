@@ -30,6 +30,9 @@ object CapsuleStateManager {
     private val _visualizerAmplitudes = MutableStateFlow(listOf(0.3f, 0.3f, 0.3f))
     val visualizerAmplitudes: StateFlow<List<Float>> = _visualizerAmplitudes.asStateFlow()
 
+    private val _isNotificationPanelVisible = MutableStateFlow(false)
+    val isNotificationPanelVisible: StateFlow<Boolean> = _isNotificationPanelVisible.asStateFlow()
+
     private var prefs: android.content.SharedPreferences? = null
     private var isManuallyHidden = false
     private var collapseJob: Job? = null
@@ -38,7 +41,7 @@ object CapsuleStateManager {
     fun initialize(context: android.content.Context) {
         prefs = context.applicationContext.getSharedPreferences("capsule_settings", android.content.Context.MODE_PRIVATE)
         prefs?.registerOnSharedPreferenceChangeListener { _, key ->
-            if (key == "show_always" || key == "dismiss_delay_sec") {
+            if (key == "show_always" || key == "dismiss_delay_sec" || key == "hide_on_notification_panel") {
                 recalculateState()
             }
         }
@@ -173,10 +176,14 @@ object CapsuleStateManager {
     private fun recalculateState() {
         val sortedList = activeEvents.values.sortedByDescending { it.priority }
         
+        val isPanelVisible = _isNotificationPanelVisible.value
+        val hideOnPanel = prefs?.getBoolean("hide_on_notification_panel", true) ?: true
+        val forceHide = isPanelVisible && hideOnPanel
+
         if (sortedList.isEmpty()) {
             hideJob?.cancel()
             val showAlwaysVal = prefs?.getBoolean("show_always", false) ?: false
-            if (showAlwaysVal && !isManuallyHidden) {
+            if (showAlwaysVal && !isManuallyHidden && !forceHide) {
                 _uiState.value = CapsuleUiState(
                     mainEvent = null,
                     splitEvent = null,
@@ -185,7 +192,7 @@ object CapsuleStateManager {
                 )
             } else {
                 val delayMs = getDismissDelayMs()
-                if (delayMs > 0) {
+                if (delayMs > 0 && !forceHide) {
                     hideJob = scope.launch {
                         delay(delayMs)
                         _uiState.value = CapsuleUiState(
@@ -219,10 +226,10 @@ object CapsuleStateManager {
             else -> DisplayMode.COLLAPSED
         }
 
-        val shouldShow = if (isManuallyHidden) {
-            main.priority < 70 // Remain hidden unless priority is high
+        val shouldShow = if (isManuallyHidden || forceHide) {
+            if (forceHide) true else main.priority < 70
         } else {
-            false // Show (not hidden)
+            false
         }
 
         _uiState.value = CapsuleUiState(
@@ -231,5 +238,123 @@ object CapsuleStateManager {
             displayMode = targetMode,
             isHidden = shouldShow
         )
+    }
+
+    fun setIsNotificationPanelVisible(visible: Boolean) {
+        if (_isNotificationPanelVisible.value != visible) {
+            _isNotificationPanelVisible.value = visible
+            recalculateState()
+        }
+    }
+
+    var activeNfcRegistrationTask: String? = null
+
+    fun processNfcTag(context: android.content.Context, tagId: String, fromBackground: Boolean = false, onFinish: (() -> Unit)? = null) {
+        val settings = CapsuleSettings(context)
+        val task = activeNfcRegistrationTask
+        if (task != null) {
+            if (task == "wrist_watch") {
+                settings.nfcWristWatchTagId = tagId
+                android.widget.Toast.makeText(context, "Wrist Watch Task bound to tag: $tagId", android.widget.Toast.LENGTH_SHORT).show()
+            } else if (task == "chetak") {
+                settings.nfcChetakTagId = tagId
+                android.widget.Toast.makeText(context, "Chetak Task bound to tag: $tagId", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            activeNfcRegistrationTask = null
+            vibrateBriefly(context)
+        } else {
+            if (tagId == settings.nfcWristWatchTagId) {
+                executeWristWatchTask(context)
+                if (fromBackground) {
+                    onFinish?.invoke()
+                }
+            } else if (tagId == settings.nfcChetakTagId) {
+                executeChetakTask(context)
+                if (fromBackground) {
+                    onFinish?.invoke()
+                }
+            } else {
+                android.widget.Toast.makeText(context, "NFC Tag scanned: $tagId (Unbound)", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun executeWristWatchTask(context: android.content.Context) {
+        val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
+        val currentMode = audioManager.ringerMode
+        if (currentMode == android.media.AudioManager.RINGER_MODE_VIBRATE) {
+            audioManager.ringerMode = android.media.AudioManager.RINGER_MODE_NORMAL
+            postEvent(CapsuleEvent.SoundProfile(profile = "Ring"))
+            android.widget.Toast.makeText(context, "Wrist Watch Task: Sound Profile set to Ring", android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            audioManager.ringerMode = android.media.AudioManager.RINGER_MODE_VIBRATE
+            postEvent(CapsuleEvent.SoundProfile(profile = "Vibrate"))
+            android.widget.Toast.makeText(context, "Wrist Watch Task: Sound Profile set to Vibrate", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        vibrateBriefly(context)
+    }
+
+    private fun executeChetakTask(context: android.content.Context) {
+        try {
+            val bluetoothAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+            if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled) {
+                bluetoothAdapter.enable()
+                postEvent(CapsuleEvent.SystemToggle(id = "bluetooth_toggle", name = "Bluetooth", isEnabled = true))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        android.widget.Toast.makeText(context, "Chetak Task: Bluetooth enabled, launching app in 2s...", android.widget.Toast.LENGTH_SHORT).show()
+        vibrateBriefly(context)
+
+        scope.launch {
+            delay(2000)
+            val pm = context.packageManager
+            val packagesToTry = listOf(
+                "com.bajajauto.chetak",
+                "com.piyush.oto",
+                "com.google.android.apps.youtube.music",
+                "com.android.music",
+                "com.google.android.music"
+            )
+            for (pkg in packagesToTry) {
+                val launchIntent = pm.getLaunchIntentForPackage(pkg)
+                if (launchIntent != null) {
+                    launchIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(launchIntent)
+                    return@launch
+                }
+            }
+            try {
+                val marketIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    data = android.net.Uri.parse("market://search?q=Oto Music")
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(marketIntent)
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(context, "Could not open music app", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun vibrateBriefly(context: android.content.Context) {
+        try {
+            val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(android.content.Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as android.os.Vibrator
+            }
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(android.os.VibrationEffect.createOneShot(80, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(80)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 }
