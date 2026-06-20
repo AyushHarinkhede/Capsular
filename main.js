@@ -17,12 +17,36 @@ themeToggleBtn.addEventListener('click', () => {
 // Interactive Web Simulator
 const capsule = document.getElementById('simulated-capsule');
 const controlTabs = document.querySelectorAll('.control-tab');
+const statusBar = document.querySelector('.device-status-bar');
 let activeState = 'idle';
+
+// Function to update the real-time clock inside simulated iPhone
+function updateMockupClock() {
+  const clockElement = document.getElementById('device-time');
+  if (!clockElement) return;
+  
+  const now = new Date();
+  let hours = now.getHours();
+  let minutes = now.getMinutes();
+  
+  // Format to two digits
+  hours = hours < 10 ? '0' + hours : hours;
+  minutes = minutes < 10 ? '0' + minutes : minutes;
+  
+  clockElement.textContent = `${hours}:${minutes}`;
+}
+
+// Initialize clock and update every 10 seconds
+updateMockupClock();
+setInterval(updateMockupClock, 10000);
 
 // Function to transition the simulated capsule
 function transitionCapsuleState(newState) {
-  // Remove all state classes
+  // Remove all state classes (collapsing any expanded views by default)
   capsule.className = 'capsule';
+  
+  // Restore status bar visibility on new state selection
+  statusBar?.classList.remove('hidden');
   
   // Set new state class
   capsule.classList.add(newState);
@@ -48,8 +72,8 @@ controlTabs.forEach(tab => {
 
 // Click listener on the capsule itself (Toggles expanded state for active content)
 capsule.addEventListener('click', (e) => {
-  // If clicked a button inside, let its own event handle it or ignore expansion toggle
-  if (e.target.closest('button')) {
+  // If clicked a button inside, let its own event handle it
+  if (e.target.closest('button') || e.target.closest('.btn-action')) {
     return;
   }
   
@@ -62,6 +86,22 @@ capsule.addEventListener('click', (e) => {
   } else {
     // Toggle expanded card view
     capsule.classList.toggle('expanded');
+    
+    // Hide status bar when expanded to prevent overlap, show when collapsed
+    if (capsule.classList.contains('expanded')) {
+      statusBar?.classList.add('hidden');
+    } else {
+      statusBar?.classList.remove('hidden');
+    }
+  }
+});
+
+// Outside Click Dismissal (Clicking simulated screen background collapses capsule)
+document.querySelector('.device-screen').addEventListener('click', (e) => {
+  // Check if click target is outside the capsule itself
+  if (!e.target.closest('#simulated-capsule') && capsule.classList.contains('expanded')) {
+    capsule.classList.remove('expanded');
+    statusBar?.classList.remove('hidden');
   }
 });
 
@@ -148,6 +188,7 @@ document.addEventListener('keydown', (e) => {
     closeLightbox();
   }
 });
+
 // Mark successfully loaded images
 document.querySelectorAll('.screenshot-img').forEach(img => {
   img.addEventListener('load', () => {
