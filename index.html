@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Capsular - A fluid, interactive capsule overlay and quick task controller utility. Download the latest APK and view features.">
+  <title>Capsular - Fluid Capsule Overlay & Controller</title>
+  
+  <!-- Google Fonts: Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  
+  <!-- Material Symbols -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    function handleImageError(imageElement, screenTitle) {
+      imageElement.style.display = 'none';
+      imageElement.classList.remove('loaded');
+      
+      const card = imageElement.closest('.screenshot-card');
+      card.style.aspectRatio = '9 / 19';
+      
+      const fallbackDiv = document.createElement('div');
+      fallbackDiv.className = 'screenshot-fallback';
+      fallbackDiv.innerHTML = `
+        <span class="material-symbols-rounded">screenshot</span>
+        <span class="screenshot-fallback-title">${screenTitle}</span>
+        <span class="screenshot-fallback-subtitle">Ready for ${imageElement.getAttribute('src')}</span>
+      `;
+      
+      card.appendChild(fallbackDiv);
+    }
+  </script>
+</head>
+<body class="dark-theme">
+
+  <!-- Header / Navigation -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <img src="logo.png" alt="Capsular Logo" class="brand-logo" onerror="this.src='https://img.shields.io/badge/Capsular-6750A4?style=for-the-badge'">
+        <div class="brand-text">
+          <span class="brand-name">Capsular</span>
+          <span class="brand-status"><span class="status-dot active"></span>Live Showcase</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button id="theme-toggle" class="icon-btn" aria-label="Toggle theme">
+          <span class="material-symbols-rounded">light_mode</span>
+        </button>
+        <a href="./app/build/outputs/apk/debug/app-debug.apk" class="btn btn-filled header-download" download>
+          <span class="material-symbols-rounded">download</span> Download APK
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="hero-text-content">
+        <h1 class="hero-title">A fluid capsule overlay and quick controller</h1>
+        <p class="hero-subtitle">
+          Groups your active tasks, status indicators, and background utilities into an interactive capsule. Built from the ground up for custom controls, active visualizers, and swift system actions.
+        </p>
+        <div class="hero-buttons">
+          <a href="./app/build/outputs/apk/debug/app-debug.apk" class="btn btn-filled btn-large" download>
+            <span class="material-symbols-rounded">download</span> Download Latest APK
+          </a>
+          <a href="#features" class="btn btn-outlined btn-large">Explore Features</a>
+        </div>
+        
+        <div class="stats-pills">
+          <div class="stat-pill">
+            <span class="material-symbols-rounded">code</span>
+            <span>Kotlin / Native</span>
+          </div>
+          <div class="stat-pill">
+            <span class="material-symbols-rounded">layers</span>
+            <span>Overlay Service</span>
+          </div>
+          <div class="stat-pill">
+            <span class="material-symbols-rounded">nfc</span>
+            <span>NFC Ready</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Web Simulator -->
+      <div class="hero-simulator">
+        <div class="device-frame">
+          <div class="device-screen">
+            <!-- Simulated Notch/Camera Area containing the Capsule -->
+            <div class="simulator-notch-area">
+              <div id="simulated-capsule" class="capsule idle">
+                
+                <!-- Idle State Content -->
+                <div class="capsule-content content-idle">
+                  <div class="camera-lens"></div>
+                </div>
+
+                <!-- Music State Content -->
+                <div class="capsule-content content-music">
+                  <div class="music-leading">
+                    <img src="logo.png" alt="Album Art" class="album-art" onerror="this.style.display='none'">
+                    <span class="material-symbols-rounded music-icon-fallback">music_note</span>
+                    <div class="track-details">
+                      <span class="track-name">Starlight Symphony</span>
+                      <span class="track-artist">Acoustic Waves</span>
+                    </div>
+                  </div>
+                  <div class="music-trailing">
+                    <div class="visualizer-bars">
+                      <div class="bar"></div>
+                      <div class="bar"></div>
+                      <div class="bar"></div>
+                      <div class="bar"></div>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only music-controls">
+                    <div class="progress-bar-container">
+                      <span class="time-label">1:24</span>
+                      <div class="progress-track"><div class="progress-fill" style="width: 45%;"></div></div>
+                      <span class="time-label">3:10</span>
+                    </div>
+                    <div class="control-buttons">
+                      <button class="icon-btn"><span class="material-symbols-rounded">skip_previous</span></button>
+                      <button class="icon-btn btn-play-pause"><span class="material-symbols-rounded">pause</span></button>
+                      <button class="icon-btn"><span class="material-symbols-rounded">skip_next</span></button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Call State Content -->
+                <div class="capsule-content content-call">
+                  <div class="call-leading">
+                    <span class="material-symbols-rounded call-avatar">person</span>
+                    <div class="call-details">
+                      <span class="caller-name">Incoming Call</span>
+                      <span class="caller-number">+1 (555) 902-1337</span>
+                    </div>
+                  </div>
+                  <div class="call-trailing">
+                    <span class="material-symbols-rounded phone-pulse">call</span>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only call-actions">
+                    <button class="btn-action reject"><span class="material-symbols-rounded">call_end</span> Decline</button>
+                    <button class="btn-action accept"><span class="material-symbols-rounded">call</span> Answer</button>
+                  </div>
+                </div>
+
+                <!-- NFC State Content -->
+                <div class="capsule-content content-nfc">
+                  <div class="nfc-leading">
+                    <span class="material-symbols-rounded nfc-icon">nfc</span>
+                    <div class="nfc-details">
+                      <span class="nfc-title">Chetak Smart Tag</span>
+                      <span class="nfc-status">Profile configured</span>
+                    </div>
+                  </div>
+                  <div class="nfc-trailing">
+                    <span class="material-symbols-rounded text-green">check_circle</span>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only nfc-expanded">
+                    <p class="nfc-info">Triggered action: Toggle Commute Mode & Wi-Fi</p>
+                    <button class="btn-action dismiss-nfc">Done</button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Simulator Instructions/Overlay in Screen -->
+            <div class="simulator-bg-content">
+              <span class="device-time">04:42</span>
+              <div class="simulator-tips">
+                <span class="material-symbols-rounded">touch_app</span>
+                <p>Click the Capsule or use the controls below to trigger morphing states</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Simulator Controls -->
+        <div class="simulator-controls-panel">
+          <button class="control-tab active" data-state="idle">Idle</button>
+          <button class="control-tab" data-state="music">Music Playback</button>
+          <button class="control-tab" data-state="call">Active Call</button>
+          <button class="control-tab" data-state="nfc">NFC Trigger</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features-section">
+      <div class="section-header">
+        <h2 class="section-title">Engineered for Interaction</h2>
+        <p class="section-subtitle">Designed to turn a static header space into an expressive utility layer.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-card-content">
+            <div class="card-icon-wrapper">
+              <span class="material-symbols-rounded">gesture</span>
+            </div>
+            <h3 class="card-title">Intuitive Gestures</h3>
+            <p class="card-description">Tap to expand into full controls, long-press for detail sheets, and swipe to dismiss or skip tracks instantly.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-content">
+            <div class="card-icon-wrapper">
+              <span class="material-symbols-rounded">analytics</span>
+            </div>
+            <h3 class="card-title">Active Visualizers</h3>
+            <p class="card-description">Live audio and voice waveforms dynamically respond to track amplitude and communication states.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-content">
+            <div class="card-icon-wrapper">
+              <span class="material-symbols-rounded">nfc</span>
+            </div>
+            <h3 class="card-title">NFC Automation</h3>
+            <p class="card-description">Register personal NFC tags (Wrist Watch or Chetak keys) to trigger pre-configured profiles instantly on contact.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-content">
+            <div class="card-icon-wrapper">
+              <span class="material-symbols-rounded">tune</span>
+            </div>
+            <h3 class="card-title">Calibration Overlay</h3>
+            <p class="card-description">Align coordinates perfectly with custom width, height, and offsets to suit any display layout.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screenshots Section -->
+    <section id="screenshots" class="screenshots-section">
+      <div class="section-header">
+        <h2 class="section-title">Interface Gallery</h2>
+        <p class="section-subtitle">A clean overview of the application interface, settings panel, and interactive setup flow.</p>
+      </div>
+
+      <!-- Screenshot Grid -->
+      <div class="screenshots-grid">
+        <!-- 8 Screenshot placeholders that load image1.png to image8.png -->
+        <div class="screenshot-wrapper" data-index="1">
+          <div class="screenshot-card">
+            <img src="image1.png" alt="Screenshot 1: Main Panel" class="screenshot-img" onerror="handleImageError(this, 'Main Panel')">
+            <div class="screenshot-overlay">
+              <span class="material-symbols-rounded">zoom_in</span>
+              <span class="screenshot-name">Main Dashboard</span>
+            </div>
+          </div>
+        </div>
+        <div class="screenshot-wrapper" data-index="2">
+          <div class="screenshot-card">
+            <img src="image2.png" alt="Screenshot 2: Custom Toggles" class="screenshot-img" onerror="handleImageError(this, 'Custom Toggles')">
+            <div class="screenshot-overlay">
+              <span class="material-symbols-rounded">zoom_in</span>
+              <span class="screenshot-name">Custom Toggles</span>
+            </div>
+          </div>
+        </div>
+        <div class="screenshot-wrapper" data-index="3">
+          <div class="screenshot-card">
+            <img src="image3.png" alt="Screenshot 3: NFC Mapping" class="screenshot-img" onerror="handleImageError(this, 'NFC Mapping')">
+            <div class="screenshot-overlay">
+              <span class="material-symbols-rounded">zoom_in</span>
+              <span class="screenshot-name">NFC Mapping</span>
+            </div>
+          </div>
+        </div>
+        <div class="screenshot-wrapper" data-index="4">
+          <div class="screenshot-card">
+            <img src="image4.png" alt="Screenshot 4: Calibration Flow" class="screenshot-img" onerror="handleImageError(this, 'Calibration Flow')">
+            <div class="screenshot-overlay">
+              <span class="material-symbols-rounded">zoom_in</span>
+              <span class="screenshot-name">Calibration Settings</span>
+            </div>
+          </div>
+        </div>
+        <div class="screenshot-wrapper" data-index="5">
+          <div class="screenshot-card">
+            <img src="image5.png" alt="Screenshot 5: Theme Customization" class="screenshot-img" onerror="handleImageError(this, 'Theme Customization')">
+            <div class="screenshot-overlay">
+              <span class="material-symbols-rounded">zoom_in</span>
+              <span class="screenshot-name">Theme Config</span>
+            </div>
+          </div>
+        </div>
+        <div class="screenshot-wrapper" data-index="6">
+          <div class="screenshot-card">
+            <img src="image6.png" alt="Screenshot 6: Visualizer Options" class="screenshot-img" onerror="handleImageError(this, 'Visualizer Options')">
+            <div class="screenshot-overlay">
+              <span class="material-symbols-rounded">zoom_in</span>
+              <span class="screenshot-name">Visualizer Settings</span>
+            </div>
+          </div>
+        </div>
+        <div class="screenshot-wrapper" data-index="7">
+          <div class="screenshot-card">
+            <img src="image7.png" alt="Screenshot 7: Notification Logs" class="screenshot-img" onerror="handleImageError(this, 'Notification Logs')">
+            <div class="screenshot-overlay">
+              <span class="material-symbols-rounded">zoom_in</span>
+              <span class="screenshot-name">Notification Feed</span>
+            </div>
+          </div>
+        </div>
+        <div class="screenshot-wrapper" data-index="8">
+          <div class="screenshot-card">
+            <img src="image8.png" alt="Screenshot 8: Advanced Profiles" class="screenshot-img" onerror="handleImageError(this, 'Advanced Profiles')">
+            <div class="screenshot-overlay">
+              <span class="material-symbols-rounded">zoom_in</span>
+              <span class="screenshot-name">Developer Options</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Technical Specs Section -->
+    <section class="tech-section">
+      <div class="tech-container">
+        <h2 class="tech-heading">Technical Specs</h2>
+        <div class="tech-grid">
+          <div class="tech-spec-item">
+            <span class="spec-label">Language</span>
+            <span class="spec-value">Kotlin / Native</span>
+          </div>
+          <div class="tech-spec-item">
+            <span class="spec-label">Interface Framework</span>
+            <span class="spec-value">Jetpack Compose / Material 3</span>
+          </div>
+          <div class="tech-spec-item">
+            <span class="spec-label">Target Architecture</span>
+            <span class="spec-value">ViewModel & StateFlow</span>
+          </div>
+          <div class="tech-spec-item">
+            <span class="spec-label">Rendering Mode</span>
+            <span class="spec-value">Foreground Window Service Overlay</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <p class="copyright">Copyright © 2026 Ayush Harinkhede. All rights reserved.</p>
+      <p class="footer-tagline">Created for flexible, physics-based notifications.</p>
+    </div>
+  </footer>
+
+  <!-- Lightbox Modal -->
+  <div id="lightbox-modal" class="lightbox" aria-hidden="true">
+    <button class="lightbox-close" aria-label="Close modal">
+      <span class="material-symbols-rounded">close</span>
+    </button>
+    <div class="lightbox-content">
+      <img id="lightbox-img" src="" alt="Expanded View">
+      <p id="lightbox-caption" class="lightbox-caption"></p>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
