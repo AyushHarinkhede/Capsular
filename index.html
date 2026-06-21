@@ -16,6 +16,7 @@
   
   <link rel="stylesheet" href="styles.css">
   <script>
+    // 1. Handle image fallbacks
     function handleImageError(imageElement, screenTitle) {
       imageElement.style.display = 'none';
       imageElement.classList.remove('loaded');
@@ -33,6 +34,68 @@
       
       card.appendChild(fallbackDiv);
     }
+
+    // 2. Browser Security Features
+    // Disable Context Menu
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Disable copy, cut, paste, selectstart, dragstart
+    document.addEventListener('copy', e => e.preventDefault());
+    document.addEventListener('cut', e => e.preventDefault());
+    document.addEventListener('paste', e => e.preventDefault());
+    document.addEventListener('selectstart', e => e.preventDefault());
+    document.addEventListener('dragstart', e => e.preventDefault());
+
+    // Keyboard Shortcuts Blocker (F12, Inspect, Save, View Source, Zoom)
+    document.addEventListener('keydown', e => {
+      // F12 key
+      if (e.key === 'F12') {
+        e.preventDefault();
+        return false;
+      }
+      
+      // Ctrl+Shift+I, J, C (Inspect Element/Console)
+      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+        return false;
+      }
+      
+      // Ctrl+U (View Source) or Ctrl+S (Save)
+      if (e.ctrlKey && (e.key === 'U' || e.key === 'u' || e.key === 'S' || e.key === 's')) {
+        e.preventDefault();
+        return false;
+      }
+
+      // Ctrl + '+' or '-' or '0' (Zoom keys)
+      if (e.ctrlKey && (e.key === '=' || e.key === '-' || e.key === '+' || e.key === '_' || e.key === '0')) {
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    // Disable Mouse Wheel Zoom (Ctrl + Wheel)
+    document.addEventListener('wheel', e => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // Focus lost page blur (Anti-screen capture)
+    window.addEventListener('blur', () => {
+      document.body.style.filter = 'blur(15px) brightness(0.1)';
+    });
+    window.addEventListener('focus', () => {
+      document.body.style.filter = 'none';
+    });
+
+    // Enter Fullscreen on first click/tap
+    document.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          // Fail silently
+        });
+      }
+    });
   </script>
 </head>
 <body class="dark-theme">
@@ -44,7 +107,6 @@
         <img src="logo.png" alt="Capsular Logo" class="brand-logo" onerror="this.src='https://img.shields.io/badge/Capsular-6750A4?style=for-the-badge'">
         <div class="brand-text">
           <span class="brand-name">Capsular</span>
-          <span class="brand-status"><span class="status-dot active"></span>Live Showcase</span>
         </div>
       </div>
       <div class="header-actions">
@@ -109,10 +171,11 @@
             <div class="simulator-notch-area">
               <div id="simulated-capsule" class="capsule idle">
                 
+                <!-- Fixed Camera Lens Cutout -->
+                <div class="camera-lens"></div>
+
                 <!-- Idle State Content -->
-                <div class="capsule-content content-idle">
-                  <div class="camera-lens"></div>
-                </div>
+                <div class="capsule-content content-idle"></div>
 
                 <!-- Music State Content -->
                 <div class="capsule-content content-music">
@@ -206,63 +269,8 @@
       </div>
     </section>
 
-    <!-- Features Section -->
-    <section id="features" class="features-section">
-      <div class="section-header">
-        <h2 class="section-title">Engineered for Interaction</h2>
-        <p class="section-subtitle">Designed to turn a static header space into an expressive utility layer.</p>
-      </div>
-
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-card-content">
-            <div class="card-icon-wrapper">
-              <span class="material-symbols-rounded">gesture</span>
-            </div>
-            <h3 class="card-title">Intuitive Gestures</h3>
-            <p class="card-description">Tap to expand into full controls, long-press for detail sheets, and swipe to dismiss or skip tracks instantly.</p>
-          </div>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card-content">
-            <div class="card-icon-wrapper">
-              <span class="material-symbols-rounded">analytics</span>
-            </div>
-            <h3 class="card-title">Active Visualizers</h3>
-            <p class="card-description">Live audio and voice waveforms dynamically respond to track amplitude and communication states.</p>
-          </div>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card-content">
-            <div class="card-icon-wrapper">
-              <span class="material-symbols-rounded">nfc</span>
-            </div>
-            <h3 class="card-title">NFC Automation</h3>
-            <p class="card-description">Register personal NFC tags (Wrist Watch or Chetak keys) to trigger pre-configured profiles instantly on contact.</p>
-          </div>
-        </div>
-
-        <div class="feature-card">
-          <div class="feature-card-content">
-            <div class="card-icon-wrapper">
-              <span class="material-symbols-rounded">tune</span>
-            </div>
-            <h3 class="card-title">Calibration Overlay</h3>
-            <p class="card-description">Align coordinates perfectly with custom width, height, and offsets to suit any display layout.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
     <!-- Screenshots Section -->
     <section id="screenshots" class="screenshots-section">
-      <div class="section-header">
-        <h2 class="section-title">Interface Gallery</h2>
-        <p class="section-subtitle">A clean overview of the application interface, settings panel, and interactive setup flow.</p>
-      </div>
-
       <!-- Screenshot Grid -->
       <div class="screenshots-grid">
         <!-- 8 Screenshot placeholders that load image1.png to image8.png -->
@@ -341,6 +349,51 @@
       </div>
     </section>
 
+    <!-- Features Section -->
+    <section id="features" class="features-section">
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-card-content">
+            <div class="card-icon-wrapper">
+              <span class="material-symbols-rounded">gesture</span>
+            </div>
+            <h3 class="card-title">Intuitive Gestures</h3>
+            <p class="card-description">Tap to expand into full controls, long-press for detail sheets, and swipe to dismiss or skip tracks instantly.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-content">
+            <div class="card-icon-wrapper">
+              <span class="material-symbols-rounded">analytics</span>
+            </div>
+            <h3 class="card-title">Active Visualizers</h3>
+            <p class="card-description">Live audio and voice waveforms dynamically respond to track amplitude and communication states.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-content">
+            <div class="card-icon-wrapper">
+              <span class="material-symbols-rounded">nfc</span>
+            </div>
+            <h3 class="card-title">NFC Automation</h3>
+            <p class="card-description">Register personal NFC tags (Wrist Watch or Chetak keys) to trigger pre-configured profiles instantly on contact.</p>
+          </div>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-card-content">
+            <div class="card-icon-wrapper">
+              <span class="material-symbols-rounded">tune</span>
+            </div>
+            <h3 class="card-title">Calibration Overlay</h3>
+            <p class="card-description">Align coordinates perfectly with custom width, height, and offsets to suit any display layout.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Technical Specs Section -->
     <section class="tech-section">
       <div class="tech-container">
@@ -369,7 +422,6 @@
     <!-- Platform Availability Section -->
     <section class="availability-section">
       <div class="availability-container">
-        <h2 class="availability-heading">Platform Availability</h2>
         <div class="availability-cards">
           <div class="availability-card android">
             <div class="platform-icon-name">
