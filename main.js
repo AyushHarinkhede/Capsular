@@ -191,6 +191,41 @@ function transitionCapsuleState(newState) {
   // Scroll active tab into view
   scrollTabIntoView(newState);
 
+  // Update status bar icons based on state
+  const statusDnd = document.querySelector('.status-icon-dnd');
+  const statusSilent = document.querySelector('.status-icon-silent');
+  const statusBattery = document.querySelector('.status-icon-battery');
+  const statusWifi = document.querySelector('.status-icon-wifi');
+  
+  if (statusBattery) {
+    statusBattery.style.color = '';
+    statusBattery.textContent = 'battery_charging_full';
+  }
+  if (statusWifi) {
+    statusWifi.style.color = '';
+    statusWifi.textContent = 'wifi';
+  }
+  if (statusDnd) {
+    statusDnd.style.display = (newState === 'dnd') ? 'inline-block' : 'none';
+  }
+  if (statusSilent) {
+    statusSilent.style.display = (newState === 'silent' || newState === 'vibrate') ? 'inline-block' : 'none';
+    if (newState === 'silent') {
+      statusSilent.textContent = 'notifications_off';
+      statusSilent.style.color = '#ff9800';
+    } else if (newState === 'vibrate') {
+      statusSilent.textContent = 'vibration';
+      statusSilent.style.color = '#3498db';
+    }
+  }
+  if (newState === 'battery_low' && statusBattery) {
+    statusBattery.textContent = 'battery_alert';
+    statusBattery.style.color = '#ba1a1a';
+  } else if (newState === 'charging' && statusBattery) {
+    statusBattery.textContent = 'battery_charging_full';
+    statusBattery.style.color = '#2ecc71';
+  }
+
   // Handle Stopwatch auto-start/pause
   if (newState === 'timer') {
     if (typeof startStopwatch === 'function') {
@@ -749,3 +784,238 @@ document.querySelector('.content-vibrate .vibrate-disable')?.addEventListener('c
 document.querySelector('.content-ring .ring-disable')?.addEventListener('click', () => {
   transitionCapsuleState('silent');
 });
+
+// Record state controls
+document.querySelector('.content-record .stop-record')?.addEventListener('click', () => {
+  stopRecordTimer();
+  transitionCapsuleState('idle');
+});
+
+document.querySelector('.content-record .capture-screenshot')?.addEventListener('click', () => {
+  const screen = document.querySelector('.device-screen');
+  if (!screen) return;
+  
+  // Create full-screen white flash on simulated device screen
+  const flash = document.createElement('div');
+  flash.style.position = 'absolute';
+  flash.style.top = '0';
+  flash.style.left = '0';
+  flash.style.width = '100%';
+  flash.style.height = '100%';
+  flash.style.backgroundColor = '#ffffff';
+  flash.style.zIndex = '1000';
+  flash.style.opacity = '1';
+  flash.style.transition = 'opacity 0.4s ease-out';
+  screen.appendChild(flash);
+  
+  // Trigger layout reflow
+  flash.offsetHeight;
+  flash.style.opacity = '0';
+  
+  setTimeout(() => {
+    flash.remove();
+  }, 400);
+  
+  // Revert capsule to idle state after screenshot
+  setTimeout(() => {
+    transitionCapsuleState('idle');
+  }, 500);
+});
+
+// Alarm state controls
+document.querySelector('.content-alarm .alarm-snooze')?.addEventListener('click', () => {
+  const alarmTimeEl = document.querySelector('.content-alarm .alarm-time-text');
+  const alarmDescEl = document.querySelector('.content-alarm .alarm-info-text');
+  
+  if (alarmTimeEl) alarmTimeEl.textContent = '07:39 AM';
+  if (alarmDescEl) {
+    alarmDescEl.textContent = 'Snoozed for 9 minutes...';
+    alarmDescEl.style.color = 'var(--gold)';
+  }
+  
+  setTimeout(() => {
+    transitionCapsuleState('idle');
+    setTimeout(() => {
+      // Revert text to default after collapse
+      if (alarmTimeEl) alarmTimeEl.textContent = '07:30 AM';
+      if (alarmDescEl) {
+        alarmDescEl.textContent = 'Good Morning! Time to wake up.';
+        alarmDescEl.style.color = '';
+      }
+    }, 400);
+  }, 1200);
+});
+
+document.querySelector('.content-alarm .alarm-dismiss')?.addEventListener('click', () => {
+  transitionCapsuleState('idle');
+});
+
+// Charging and Battery Low state controls
+document.querySelector('.content-battery_low .saver-enable')?.addEventListener('click', (e) => {
+  const btn = e.currentTarget;
+  btn.textContent = 'Enabled';
+  btn.style.backgroundColor = '#2ecc71';
+  
+  const statusBattery = document.querySelector('.status-icon-battery');
+  if (statusBattery) {
+    statusBattery.textContent = 'battery_saver';
+    statusBattery.style.color = '#ffe082'; // Yellow battery saver icon
+  }
+  
+  setTimeout(() => {
+    transitionCapsuleState('idle');
+    setTimeout(() => {
+      btn.textContent = 'Enable';
+      btn.style.backgroundColor = '';
+    }, 400);
+  }, 1200);
+});
+
+document.querySelector('.content-battery_low .saver-dismiss')?.addEventListener('click', () => {
+  transitionCapsuleState('idle');
+});
+
+// Earbuds state audio profile cycles on click
+document.querySelector('.content-earbuds')?.addEventListener('click', (e) => {
+  // If user clicked inside the details or grid, cycle profile
+  if (e.target.closest('.earbuds-details') || e.target.closest('.earbuds-grid')) {
+    const profileEl = document.querySelector('.earbuds-audio-profile');
+    if (!profileEl) return;
+    
+    if (profileEl.textContent.includes('Noise Cancellation')) {
+      profileEl.textContent = 'Transparency Mode Active';
+      profileEl.style.color = '#3498db';
+    } else if (profileEl.textContent.includes('Transparency')) {
+      profileEl.textContent = 'Off (Normal Audio)';
+      profileEl.style.color = '#95a5a6';
+    } else {
+      profileEl.textContent = 'Noise Cancellation Active';
+      profileEl.style.color = 'var(--tertiary)';
+    }
+  }
+});
+
+// WiFi state disconnect toggle
+document.querySelector('.content-wifi_connect .wifi-disconnect')?.addEventListener('click', (e) => {
+  const btn = e.currentTarget;
+  const statsEl = document.querySelector('.content-wifi_connect .wifi-stats');
+  const ssidEl = document.querySelector('.content-wifi_connect .wifi-ssid');
+  const iconEl = document.querySelector('.content-wifi_connect .wifi-icon-color');
+  const statusWifi = document.querySelector('.status-icon-wifi');
+  
+  if (btn.textContent === 'Disconnect') {
+    btn.textContent = 'Connect';
+    btn.classList.remove('reject');
+    btn.classList.add('accept');
+    if (statsEl) statsEl.textContent = 'Status: Disconnected';
+    if (ssidEl) ssidEl.textContent = 'No Network';
+    if (iconEl) {
+      iconEl.textContent = 'wifi_off';
+      iconEl.style.color = '#ba1a1a';
+    }
+    if (statusWifi) {
+      statusWifi.textContent = 'wifi_off';
+      statusWifi.style.color = 'rgba(255,255,255,0.3)';
+    }
+  } else {
+    btn.textContent = 'Disconnect';
+    btn.classList.remove('accept');
+    btn.classList.add('reject');
+    if (statsEl) statsEl.textContent = 'Connected • Speed: 150 Mbps';
+    if (ssidEl) ssidEl.textContent = 'Jio_5G';
+    if (iconEl) {
+      iconEl.textContent = 'wifi';
+      iconEl.style.color = 'var(--primary)';
+    }
+    if (statusWifi) {
+      statusWifi.textContent = 'wifi';
+      statusWifi.style.color = '';
+    }
+  }
+});
+
+// DND focus toggle
+document.querySelector('.content-dnd .dnd-disable')?.addEventListener('click', () => {
+  const statusEl = document.querySelector('.content-dnd .dnd-status');
+  const descEl = document.querySelector('.content-dnd .dnd-desc');
+  const dndIcon = document.querySelector('.content-dnd .material-symbols-rounded');
+  const statusDnd = document.querySelector('.status-icon-dnd');
+  
+  if (statusEl) statusEl.textContent = 'DND Off';
+  if (descEl) descEl.textContent = 'Focus mode turned off.';
+  if (dndIcon) dndIcon.style.color = '#95a5a6';
+  if (statusDnd) statusDnd.style.display = 'none';
+  
+  setTimeout(() => {
+    transitionCapsuleState('idle');
+    setTimeout(() => {
+      if (statusEl) statusEl.textContent = 'DND On';
+      if (descEl) descEl.textContent = 'Calls and notifications are silenced.';
+      if (dndIcon) dndIcon.style.color = '';
+    }, 400);
+  }, 1200);
+});
+
+// Mobile footer hover-card modal sheets
+const footerLinks = document.querySelectorAll('.footer-link');
+footerLinks.forEach(link => {
+  link.addEventListener('click', (e) => {
+    if (window.innerWidth <= 768) {
+      e.preventDefault();
+      const wrapper = link.closest('.footer-link-wrapper');
+      const card = wrapper?.querySelector('.hover-card');
+      if (!card) return;
+      
+      const isAlreadyActive = card.classList.contains('mobile-active');
+      
+      // Hide all mobile cards
+      document.querySelectorAll('.hover-card').forEach(c => {
+        c.classList.remove('mobile-active');
+      });
+      
+      // Toggle
+      if (!isAlreadyActive) {
+        card.classList.add('mobile-active');
+      }
+    }
+  });
+});
+
+// Close mobile cards on clicking outside
+document.addEventListener('click', (e) => {
+  if (window.innerWidth <= 768) {
+    if (!e.target.closest('.footer-link-wrapper')) {
+      document.querySelectorAll('.hover-card').forEach(c => {
+        c.classList.remove('mobile-active');
+      });
+    }
+  }
+});
+
+// Header Auto-Hide on scroll
+let lastScrollY = window.scrollY;
+const header = document.querySelector('.app-header');
+
+window.addEventListener('scroll', () => {
+  if (!header) return;
+  const currentScrollY = window.scrollY;
+  const pageHeight = document.documentElement.scrollHeight;
+  const viewportHeight = window.innerHeight;
+  
+  // Show header if:
+  // 1. Scrolled to the absolute top (scrollY <= 10)
+  // 2. Scrolled to the absolute bottom (scrollY + viewportHeight >= pageHeight - 15)
+  // 3. Scrolling up
+  if (currentScrollY <= 10 || currentScrollY + viewportHeight >= pageHeight - 15) {
+    header.classList.remove('header-hidden');
+  } else if (currentScrollY > lastScrollY) {
+    // Scrolling down -> Hide header
+    header.classList.add('header-hidden');
+  } else {
+    // Scrolling up -> Show header
+    header.classList.remove('header-hidden');
+  }
+  
+  lastScrollY = currentScrollY;
+});
+

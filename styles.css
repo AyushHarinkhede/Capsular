@@ -95,6 +95,7 @@ body.light-theme {
   -moz-user-select: none !important;
   -ms-user-select: none !important;
   user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 html {
@@ -126,7 +127,11 @@ body {
   backdrop-filter: blur(20px);
   border-bottom: 1px solid rgba(var(--outline), 0.1);
   padding: 16px 0;
-  transition: background-color 0.4s;
+  transition: background-color 0.4s, transform 0.35s ease-in-out;
+}
+
+.app-header.header-hidden {
+  transform: translateY(-100%);
 }
 
 .header-container {
@@ -265,13 +270,12 @@ body {
   transform: scale(0.92);
 }
 
-/* Hero Section layout */
 .hero-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: 60px;
-  padding: 60px 0;
+  padding: 60px 0 10px 0;
   min-height: 80vh;
 }
 
@@ -446,7 +450,18 @@ body {
 .capsule.timer .content-timer,
 .capsule.navigation .content-navigation,
 .capsule.cab .content-cab,
-.capsule.food .content-food {
+.capsule.food .content-food,
+.capsule.record .content-record,
+.capsule.alarm .content-alarm,
+.capsule.charging .content-charging,
+.capsule.battery_low .content-battery_low,
+.capsule.earbuds .content-earbuds,
+.capsule.wifi_connect .content-wifi_connect,
+.capsule.dnd .content-dnd,
+.capsule.silent .content-silent,
+.capsule.vibrate .content-vibrate,
+.capsule.ring .content-ring,
+.capsule.face_id .content-face_id {
   opacity: 1;
   transform: translateX(0);
   pointer-events: auto;
@@ -1269,6 +1284,10 @@ body {
   padding: 60px 0;
 }
 
+.features-section {
+  padding: 10px 0 60px 0 !important;
+}
+
 .section-header {
   text-align: center;
   margin-bottom: 50px;
@@ -1947,9 +1966,11 @@ body {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
-.dock-app:hover {
-  transform: scale(1.15) translateY(-5px);
-  box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+@media (hover: hover) {
+  .dock-app:hover {
+    transform: scale(1.15) translateY(-5px);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+  }
 }
 
 .dock-app:active {
@@ -2172,4 +2193,46 @@ body {
 @keyframes scanFace {
   0% { top: 0%; }
   100% { top: 100%; }
+}
+
+/* Mobile responsive bottom sheet style for hover-card */
+@media (max-width: 768px) {
+  .hover-card {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    max-height: 80vh;
+    overflow-y: auto;
+    border-radius: 24px 24px 0 0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-bottom: none;
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease;
+    margin: 0;
+    left: 0 !important;
+    bottom: 0 !important;
+    background: rgba(26, 26, 34, 0.98);
+  }
+  
+  .hover-card.mobile-active {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  .footer-link-wrapper:hover .hover-card {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(100%);
+  }
+  
+  .footer-link-wrapper:hover .hover-card.mobile-active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
 }
