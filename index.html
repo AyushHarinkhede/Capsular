@@ -181,6 +181,7 @@
                 <div class="capsule-content content-music">
                   <div class="capsule-top-row">
                     <div class="music-leading">
+                      <span class="material-symbols-rounded music-icon-logo">music_note</span>
                       <div class="track-details">
                         <span class="track-name">Kesariya</span>
                         <span class="track-artist">Arijit Singh</span>
@@ -198,14 +199,14 @@
                   <!-- Expanded Controls -->
                   <div class="expanded-only music-controls">
                     <div class="progress-bar-container">
-                      <span class="time-label">1:24</span>
+                      <span class="time-label current-time-display">1:24</span>
                       <div class="progress-track"><div class="progress-fill" style="width: 45%;"></div></div>
-                      <span class="time-label">3:10</span>
+                      <span class="time-label total-duration-display">3:10</span>
                     </div>
                     <div class="control-buttons">
-                      <button class="icon-btn"><span class="material-symbols-rounded">skip_previous</span></button>
+                      <button class="icon-btn btn-prev-track" aria-label="Previous Track"><span class="material-symbols-rounded">skip_previous</span></button>
                       <button class="icon-btn btn-play-pause"><span class="material-symbols-rounded">pause</span></button>
-                      <button class="icon-btn"><span class="material-symbols-rounded">skip_next</span></button>
+                      <button class="icon-btn btn-next-track" aria-label="Next Track"><span class="material-symbols-rounded">skip_next</span></button>
                     </div>
                   </div>
                 </div>
@@ -216,19 +217,30 @@
                     <div class="call-leading">
                       <span class="material-symbols-rounded call-avatar">person</span>
                       <div class="call-details expanded-only">
-                        <span class="caller-name">Incoming Call</span>
-                        <span class="caller-number">+1 (555) 902-1337</span>
+                        <span class="caller-name">Ayush Harinkhede</span>
+                        <span class="caller-status">Incoming Call</span>
                       </div>
                     </div>
                     <div class="call-trailing">
                       <span class="material-symbols-rounded phone-pulse">call</span>
+                      <div class="call-active-visualizer visualizer-bars" style="display: none;">
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                      </div>
                     </div>
                   </div>
-                  <!-- Expanded Controls -->
-                  <div class="expanded-only call-actions">
-                    <button class="btn-action mute-call"><span class="material-symbols-rounded">mic_off</span> Mute</button>
-                    <button class="btn-action reject"><span class="material-symbols-rounded">call_end</span> Decline</button>
-                    <button class="btn-action accept"><span class="material-symbols-rounded">call</span> Answer</button>
+                  <!-- Expanded Controls (Incoming) -->
+                  <div class="expanded-only call-actions incoming-call-controls">
+                    <button class="btn-action reject icon-only-btn" aria-label="Decline"><span class="material-symbols-rounded">call_end</span></button>
+                    <button class="btn-action accept icon-only-btn" aria-label="Answer"><span class="material-symbols-rounded">call</span></button>
+                  </div>
+                  <!-- Expanded Controls (Active Call) -->
+                  <div class="expanded-only call-actions active-call-controls" style="display: none;">
+                    <button class="btn-action mute-call icon-only-btn" aria-label="Mute"><span class="material-symbols-rounded">mic_off</span></button>
+                    <button class="btn-action end-call-active reject icon-only-btn" aria-label="End Call"><span class="material-symbols-rounded">call_end</span></button>
+                    <button class="btn-action speaker-call icon-only-btn" aria-label="Speaker"><span class="material-symbols-rounded">volume_up</span></button>
                   </div>
                 </div>
 
@@ -297,7 +309,7 @@
                   <div class="capsule-top-row">
                     <div class="food-leading">
                       <span class="material-symbols-rounded food-icon">local_taxi</span>
-                      <span class="food-title expanded-only">Uber Ride</span>
+                      <span class="food-title expanded-only">Cab Booking</span>
                     </div>
                     <div class="food-trailing">
                       <span class="food-eta">3 min</span>

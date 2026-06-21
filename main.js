@@ -117,18 +117,184 @@ document.querySelector('.device-screen').addEventListener('click', (e) => {
   }
 });
 
-// Additional control actions inside simulated capsule
-document.querySelector('.dismiss-nfc')?.addEventListener('click', () => {
-  transitionCapsuleState('idle');
+// Arijit Singh Track Playlist
+const arijitPlaylist = [
+  { name: "Kesariya", duration: 190 }, // 3:10
+  { name: "Tum Hi Ho", duration: 262 }, // 4:22
+  { name: "Channa Mereya", duration: 289 }, // 4:49
+  { name: "Apna Bana Le", duration: 264 }, // 4:24
+  { name: "Zaalima", duration: 299 } // 4:59
+];
+let currentTrackIndex = 0;
+let musicPlayTime = 84; // Start at 1:24
+let musicTimerInterval = null;
+let isMusicPlaying = true; // Auto-play by default when active
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s < 10 ? '0' : ''}${s}`;
+}
+
+function updateMusicUI() {
+  const currentTrack = arijitPlaylist[currentTrackIndex];
+  
+  // Update track details in both collapsed and expanded states
+  document.querySelectorAll('.content-music .track-name').forEach(el => {
+    el.textContent = currentTrack.name;
+  });
+  document.querySelectorAll('.content-music .track-artist').forEach(el => {
+    el.textContent = "Arijit Singh";
+  });
+  
+  // Update time display labels
+  const currentTimeEl = document.querySelector('.current-time-display');
+  const totalDurationEl = document.querySelector('.total-duration-display');
+  if (currentTimeEl) currentTimeEl.textContent = formatTime(musicPlayTime);
+  if (totalDurationEl) totalDurationEl.textContent = formatTime(currentTrack.duration);
+  
+  // Update progress bar fill
+  const progressFill = document.querySelector('.content-music .progress-fill');
+  if (progressFill) {
+    const pct = (musicPlayTime / currentTrack.duration) * 100;
+    progressFill.style.width = `${pct}%`;
+  }
+}
+
+function startMusicTicker() {
+  if (musicTimerInterval) clearInterval(musicTimerInterval);
+  musicTimerInterval = setInterval(() => {
+    if (isMusicPlaying) {
+      musicPlayTime++;
+      const currentTrack = arijitPlaylist[currentTrackIndex];
+      if (musicPlayTime >= currentTrack.duration) {
+        cycleTrack(1); // Next track automatically
+      } else {
+        updateMusicUI();
+      }
+    }
+  }, 1000);
+}
+
+function pauseMusicTicker() {
+  clearInterval(musicTimerInterval);
+  musicTimerInterval = null;
+}
+
+function cycleTrack(direction) {
+  currentTrackIndex = (currentTrackIndex + direction + arijitPlaylist.length) % arijitPlaylist.length;
+  musicPlayTime = 0; // Restart progress for new track
+  updateMusicUI();
+}
+
+// Initialize music UI
+updateMusicUI();
+startMusicTicker();
+
+// Music Play/Pause toggle
+const playPauseBtn = document.querySelector('.btn-play-pause');
+playPauseBtn?.addEventListener('click', () => {
+  const icon = playPauseBtn.querySelector('.material-symbols-rounded');
+  const bars = document.querySelectorAll('.content-music .visualizer-bars .bar');
+  
+  if (isMusicPlaying) {
+    icon.textContent = 'play_arrow';
+    bars.forEach(bar => {
+      bar.style.animationPlayState = 'paused';
+    });
+    isMusicPlaying = false;
+  } else {
+    icon.textContent = 'pause';
+    bars.forEach(bar => {
+      bar.style.animationPlayState = 'running';
+    });
+    isMusicPlaying = true;
+  }
 });
 
-document.querySelector('.btn-action.reject')?.addEventListener('click', () => {
-  transitionCapsuleState('idle');
+// Music skip track buttons
+document.querySelector('.btn-next-track')?.addEventListener('click', () => {
+  cycleTrack(1);
 });
 
-document.querySelector('.btn-action.accept')?.addEventListener('click', () => {
-  alert('Simulated Call Answered!');
-  transitionCapsuleState('idle');
+document.querySelector('.btn-prev-track')?.addEventListener('click', () => {
+  cycleTrack(-1);
+});
+
+// Active Call state Logic
+let callElapsedSeconds = 0;
+let callTimerInterval = null;
+let isCallActive = false;
+
+const phonePulseIcon = document.querySelector('.phone-pulse');
+const callActiveVis = document.querySelector('.call-active-visualizer');
+const incomingControls = document.querySelector('.incoming-call-controls');
+const activeCallControls = document.querySelector('.active-call-controls');
+const callerStatusText = document.querySelector('.caller-status');
+
+function startCallTimer() {
+  if (callTimerInterval) clearInterval(callTimerInterval);
+  callElapsedSeconds = 0;
+  isCallActive = true;
+  
+  // Hide phone pulse icon, show visualizer bars
+  if (phonePulseIcon) phonePulseIcon.style.display = 'none';
+  if (callActiveVis) {
+    callActiveVis.style.display = 'flex';
+    // Style active visualizer bars Sage Green & make them animate
+    const bars = callActiveVis.querySelectorAll('.bar');
+    bars.forEach((bar, idx) => {
+      bar.style.backgroundColor = 'var(--tertiary)';
+      bar.style.width = '2px';
+      bar.style.height = '4px';
+      bar.style.borderRadius = '1px';
+      bar.style.animation = `visualize 1s infinite alternate cubic-bezier(0.2, 0.8, 0.2, 1)`;
+      bar.style.animationDelay = `${idx * 0.15}s`;
+    });
+  }
+  
+  // Show active call controls panel, hide incoming panel
+  if (incomingControls) incomingControls.style.display = 'none';
+  if (activeCallControls) activeCallControls.style.display = 'flex';
+  
+  callTimerInterval = setInterval(() => {
+    callElapsedSeconds++;
+    if (callerStatusText) {
+      callerStatusText.textContent = `Active Call • ${formatTime(callElapsedSeconds)}`;
+    }
+  }, 1000);
+}
+
+function resetCallState() {
+  if (callTimerInterval) {
+    clearInterval(callTimerInterval);
+    callTimerInterval = null;
+  }
+  isCallActive = false;
+  callElapsedSeconds = 0;
+  
+  if (callerStatusText) {
+    callerStatusText.textContent = 'Incoming Call';
+  }
+  
+  // Restore original incoming indicators
+  if (phonePulseIcon) phonePulseIcon.style.display = 'inline-flex';
+  if (callActiveVis) callActiveVis.style.display = 'none';
+  if (incomingControls) incomingControls.style.display = 'flex';
+  if (activeCallControls) activeCallControls.style.display = 'none';
+}
+
+// Accept (Answer) click listener
+document.querySelector('.incoming-call-controls .accept')?.addEventListener('click', () => {
+  startCallTimer();
+});
+
+// Reject/End Call click listener
+document.querySelectorAll('.call-actions .reject, .call-actions .end-call-active').forEach(btn => {
+  btn.addEventListener('click', () => {
+    resetCallState();
+    transitionCapsuleState('idle');
+  });
 });
 
 // Call Mute Toggle
@@ -137,35 +303,29 @@ document.querySelector('.mute-call')?.addEventListener('click', () => {
   const icon = muteBtn.querySelector('.material-symbols-rounded');
   if (icon.textContent === 'mic_off') {
     icon.textContent = 'mic';
-    muteBtn.innerHTML = '<span class="material-symbols-rounded">mic</span> Unmute';
     muteBtn.style.backgroundColor = '#ba1a1a'; // Highlight as active mute red
   } else {
     icon.textContent = 'mic_off';
-    muteBtn.innerHTML = '<span class="material-symbols-rounded">mic_off</span> Mute';
     muteBtn.style.backgroundColor = '#3e3e4a';
   }
 });
 
-// Simulated Music Play/Pause toggle
-const playPauseBtn = document.querySelector('.btn-play-pause');
-let isPlaying = true;
-playPauseBtn?.addEventListener('click', () => {
-  const icon = playPauseBtn.querySelector('.material-symbols-rounded');
-  const bars = document.querySelectorAll('.visualizer-bars .bar');
-  
-  if (isPlaying) {
-    icon.textContent = 'play_arrow';
-    bars.forEach(bar => {
-      bar.style.animationPlayState = 'paused';
-    });
-    isPlaying = false;
+// Speaker Toggle
+document.querySelector('.speaker-call')?.addEventListener('click', () => {
+  const speakerBtn = document.querySelector('.speaker-call');
+  const icon = speakerBtn.querySelector('.material-symbols-rounded');
+  if (icon.textContent === 'volume_up') {
+    icon.textContent = 'volume_down';
+    speakerBtn.style.backgroundColor = '#3f51b5'; // Blue highlight for active speaker
   } else {
-    icon.textContent = 'pause';
-    bars.forEach(bar => {
-      bar.style.animationPlayState = 'running';
-    });
-    isPlaying = true;
+    icon.textContent = 'volume_up';
+    speakerBtn.style.backgroundColor = '#3e3e4a';
   }
+});
+
+// Additional control actions inside simulated capsule
+document.querySelector('.dismiss-nfc')?.addEventListener('click', () => {
+  transitionCapsuleState('idle');
 });
 
 // Stopwatch / Timer state Logic

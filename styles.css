@@ -697,8 +697,10 @@ body {
 
 .call-actions {
   display: flex;
-  gap: 10px;
+  justify-content: center;
+  gap: 16px;
   padding: 0 16px 12px 16px;
+  width: 100%;
 }
 
 .btn-action {
@@ -725,9 +727,29 @@ body {
 .btn-action.accept { background-color: #2e7d32; } /* Forest Green */
 .btn-action.mute-call { background-color: #3e3e4a; } /* Slate Gray */
 
+.icon-only-btn {
+  max-width: 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50% !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  flex: none !important;
+}
+
+.music-icon-logo {
+  color: var(--tertiary);
+  font-size: 16px;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
 /* NFC Capsule State Styles */
 .capsule.nfc {
-  width: 115px;
+  width: 140px; /* Made slightly longer/larger for breathing room */
   height: 38px;
 }
 
