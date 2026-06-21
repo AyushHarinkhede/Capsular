@@ -171,8 +171,7 @@
             <div class="simulator-notch-area">
               <div id="simulated-capsule" class="capsule idle">
                 
-                <!-- Fixed Camera Lens Cutout -->
-                <div class="camera-lens"></div>
+                <!-- Fixed Camera Lens Cutout (Removed as per user request) -->
 
                 <!-- Idle State Content -->
                 <div class="capsule-content content-idle"></div>
@@ -217,7 +216,7 @@
                     <div class="call-leading">
                       <span class="material-symbols-rounded call-avatar">person</span>
                       <div class="call-details expanded-only">
-                        <span class="caller-name">Ayush Harinkhede</span>
+                        <span class="caller-name">Ayush</span>
                         <span class="caller-status">Incoming Call</span>
                       </div>
                     </div>
@@ -233,8 +232,12 @@
                   </div>
                   <!-- Expanded Controls (Incoming) -->
                   <div class="expanded-only call-actions incoming-call-controls">
-                    <button class="btn-action reject icon-only-btn" aria-label="Decline"><span class="material-symbols-rounded">call_end</span></button>
-                    <button class="btn-action accept icon-only-btn" aria-label="Answer"><span class="material-symbols-rounded">call</span></button>
+                    <button class="btn-action reject text-btn" aria-label="Decline">
+                      <span class="material-symbols-rounded">call_end</span> Decline
+                    </button>
+                    <button class="btn-action accept text-btn" aria-label="Answer">
+                      <span class="material-symbols-rounded">call</span> Answer
+                    </button>
                   </div>
                   <!-- Expanded Controls (Active Call) -->
                   <div class="expanded-only call-actions active-call-controls" style="display: none;">
@@ -304,23 +307,44 @@
                   </div>
                 </div>
 
-                <!-- Food Delivery / Cab Status State Content -->
+                <!-- Cab Status State Content -->
+                <div class="capsule-content content-cab">
+                  <div class="capsule-top-row">
+                    <div class="cab-leading">
+                      <span class="material-symbols-rounded cab-icon">local_taxi</span>
+                      <span class="cab-title expanded-only">Cab Booking</span>
+                    </div>
+                    <div class="cab-trailing">
+                      <span class="cab-eta">3 min</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only cab-details">
+                    <p class="cab-status-text">Driver is arriving at pickup location</p>
+                    <div class="cab-progress-track">
+                      <div class="cab-progress-fill" style="width: 85%;"></div>
+                      <span class="material-symbols-rounded cab-car-node">local_taxi</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Food Delivery State Content -->
                 <div class="capsule-content content-food">
                   <div class="capsule-top-row">
                     <div class="food-leading">
-                      <span class="material-symbols-rounded food-icon">local_taxi</span>
-                      <span class="food-title expanded-only">Cab Booking</span>
+                      <span class="material-symbols-rounded food-icon">delivery_dining</span>
+                      <span class="food-title expanded-only">Food Delivery</span>
                     </div>
                     <div class="food-trailing">
-                      <span class="food-eta">3 min</span>
+                      <span class="food-eta">12 min</span>
                     </div>
                   </div>
                   <!-- Expanded Controls -->
                   <div class="expanded-only food-details">
-                    <p class="food-status-text">Driver is arriving at pickup location</p>
-                    <div class="delivery-progress-track">
-                      <div class="delivery-progress-fill" style="width: 80%;"></div>
-                      <span class="material-symbols-rounded delivery-car-node">local_taxi</span>
+                    <p class="food-status-text">Rider is near your location</p>
+                    <div class="food-progress-track">
+                      <div class="food-progress-fill" style="width: 70%;"></div>
+                      <span class="material-symbols-rounded food-delivery-node">delivery_dining</span>
                     </div>
                   </div>
                 </div>
@@ -332,21 +356,87 @@
             <div class="simulator-bg-content">
               <div class="simulator-tips">
                 <span class="material-symbols-rounded">touch_app</span>
-                <p>Click the Capsule or use the controls below to trigger morphing states</p>
+                <p>Click the capsule and switch the control line</p>
               </div>
+              
+              <!-- iPhone screen Capsular brand placement -->
+              <div class="device-brand-info">
+                <img src="logo.png" alt="Capsular Logo" class="device-brand-logo" onerror="this.src='https://img.shields.io/badge/Capsular-6750A4?style=for-the-badge'">
+                <span class="device-brand-name">Capsular</span>
+              </div>
+            </div>
+
+            <!-- Simulated iPhone Dock containing 4 apps -->
+            <div class="device-dock">
+              <button class="dock-app phone-app" data-state="call" aria-label="Phone App">
+                <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+                  <rect width="64" height="64" rx="15" fill="url(#phoneGrad)"/>
+                  <defs>
+                    <linearGradient id="phoneGrad" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stop-color="#62e662"/>
+                      <stop offset="100%" stop-color="#19c719"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M45.1 36.9c-2.3-1.5-4.7-1.7-6.2.2l-1.3 1.6c-.7.9-1.8 1.1-2.9.5-3.3-1.8-6.1-4.6-7.9-7.9-.6-1.1-.4-2.2.5-2.9l1.6-1.3c1.9-1.5 1.7-3.9.2-6.2l-3.3-5.2c-1.5-2.3-3.9-2.3-5.8-.3L17.5 18c-2.6 2.6-3.3 6.6-1.7 10.7 3.3 8.3 9.9 14.9 18.2 18.2 4.1 1.6 8.1.9 10.7-1.7l2.6-2.5c2-2 .1-4.3-2.2-5.8l-5-3.1z" fill="#fff"/>
+                </svg>
+              </button>
+              <button class="dock-app music-app" data-state="music" aria-label="Music App">
+                <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+                  <rect width="64" height="64" rx="15" fill="url(#musicGrad)"/>
+                  <defs>
+                    <linearGradient id="musicGrad" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stop-color="#ff5e80"/>
+                      <stop offset="100%" stop-color="#ff2a54"/>
+                    </linearGradient>
+                  </defs>
+                  <path d="M44 16 L24 20 V40 C22.5 39 20 38.5 18 38.5 C13 38.5 9 41.5 9 45 C9 48.5 13 51.5 18 51.5 C23 51.5 27 48.5 27 45 V25 L41 22.2 V35 C39.5 34 37 33.5 35 33.5 C30 33.5 26 36.5 26 40 C26 43.5 30 46.5 35 46.5 C40 46.5 44 43.5 44 40 V16 Z" fill="#fff"/>
+                </svg>
+              </button>
+              <button class="dock-app navigation-app" data-state="navigation" aria-label="Navigation App">
+                <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
+                  <rect width="64" height="64" rx="15" fill="#e5e5e0"/>
+                  <path d="M0 0h24v24C15 24 6 15 0 6V0z" fill="#c3e6c3"/>
+                  <path d="M40 40h24v24H40V40z" fill="#d2f0d2"/>
+                  <path d="M12 52c12-18 24-20 40-24" stroke="#1b85ff" stroke-width="5" stroke-linecap="round" fill="none"/>
+                  <path d="M0 28h64" stroke="#fff" stroke-width="8"/>
+                  <path d="M0 28h64" stroke="#fbdc5c" stroke-width="4"/>
+                  <path d="M8 64L56 0" stroke="#fff" stroke-width="8"/>
+                  <path d="M8 64L56 0" stroke="#e0e0e0" stroke-width="5"/>
+                  <circle cx="12" cy="52" r="6" fill="#1b85ff" stroke="#fff" stroke-width="2"/>
+                  <g transform="translate(52, 28) rotate(45)">
+                    <path d="M0 -8l6 14-6-4-6 4 6-14z" fill="#1b85ff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+                  </g>
+                </svg>
+              </button>
+              <button class="dock-app capsular-app" data-state="idle" aria-label="Capsular App">
+                <img src="logo.png" alt="Capsular App Icon" onerror="this.src='https://img.shields.io/badge/Capsular-6750A4?style=for-the-badge'">
+              </button>
             </div>
           </div>
         </div>
 
-        <!-- Simulator Controls -->
-        <div class="simulator-controls-panel">
-          <button class="control-tab active" data-state="idle">Idle</button>
-          <button class="control-tab" data-state="music">Music</button>
-          <button class="control-tab" data-state="call">Call</button>
-          <button class="control-tab" data-state="nfc">NFC</button>
-          <button class="control-tab" data-state="timer">Timer</button>
-          <button class="control-tab" data-state="navigation">Nav</button>
-          <button class="control-tab" data-state="food">Cab</button>
+        <!-- Simulator Controls Slider -->
+        <div class="simulator-controls-container">
+          <button class="carousel-arrow prev" aria-label="Previous options">
+            <span class="material-symbols-rounded">chevron_left</span>
+          </button>
+          
+          <div class="simulator-controls-viewport">
+            <div class="simulator-controls-track">
+              <button class="control-tab active" data-state="idle">Idle</button>
+              <button class="control-tab" data-state="music">Music</button>
+              <button class="control-tab" data-state="call">Call</button>
+              <button class="control-tab" data-state="nfc">NFC</button>
+              <button class="control-tab" data-state="timer">Timer</button>
+              <button class="control-tab" data-state="navigation">Nav</button>
+              <button class="control-tab" data-state="cab">Cab</button>
+              <button class="control-tab" data-state="food">Food</button>
+            </div>
+          </div>
+          
+          <button class="carousel-arrow next" aria-label="Next options">
+            <span class="material-symbols-rounded">chevron_right</span>
+          </button>
         </div>
       </div>
     </section>

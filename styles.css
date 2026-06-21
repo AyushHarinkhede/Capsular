@@ -142,8 +142,8 @@ body {
 }
 
 .brand-logo {
-  width: 60px;
-  height: 60px;
+  width: 80px;
+  height: 80px;
   border-radius: var(--border-radius-m);
   transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -345,7 +345,7 @@ body {
   height: auto;
   border-radius: 40px;
   background-color: #000000;
-  padding: 12px;
+  padding: 7px;
   box-shadow: 0 25px 60px -12px var(--shadow-color), 0 0 0 4px #2c2c2c, inset 0 0 3px 2px rgba(255,255,255,0.1);
   position: relative;
   overflow: hidden;
@@ -355,13 +355,14 @@ body {
   width: 100%;
   height: 100%;
   border-radius: 32px;
-  background-color: #0c0b11;
+  background: linear-gradient(180deg, #1b1735 0%, #0d0a15 100%);
   position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border: 2px solid #1a1a1f;
   user-select: none;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
 }
 
 /* iPhone mock top status bar layout */
@@ -411,7 +412,7 @@ body {
 .capsule {
   position: relative; /* Anchor for absolute camera lens cutout */
   background-color: #000000;
-  border-radius: var(--border-radius-pill);
+  border-radius: 19px; /* Finite border-radius instead of 9999px to prevent sharp edges on bounce overshoot */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -444,6 +445,7 @@ body {
 .capsule.nfc .content-nfc,
 .capsule.timer .content-timer,
 .capsule.navigation .content-navigation,
+.capsule.cab .content-cab,
 .capsule.food .content-food {
   opacity: 1;
   transform: translateX(0);
@@ -454,6 +456,7 @@ body {
 .capsule.idle {
   width: 110px;
   height: 28px;
+  border-radius: 14px; /* Fully rounded for 28px height */
 }
 
 .capsule.idle .content-idle {
@@ -465,17 +468,7 @@ body {
 }
 
 .camera-lens {
-  width: 12px;
-  height: 12px;
-  background-color: #0c0e12;
-  border-radius: 50%;
-  box-shadow: inset 0 0 4px #000;
-  position: absolute;
-  top: 13px; /* Stays fixed at vertical center/top notch line */
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 40;
-  pointer-events: none;
+  display: none !important;
 }
 
 /* Green dot reflection removed by deleting camera-lens::after */
@@ -493,8 +486,12 @@ body {
 
 /* Music Capsule State Styles */
 .capsule.music {
-  width: 165px;
+  width: 115px; /* compact when collapsed (only music icon + visualizer) */
   height: 38px;
+}
+
+.capsule.music:not(.expanded) .track-details {
+  display: none !important;
 }
 
 .capsule.music.expanded {
@@ -664,19 +661,23 @@ body {
 }
 
 .call-details {
+  display: flex;
   flex-direction: column;
   text-align: left;
 }
 
 .caller-name {
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
 }
 
-.caller-number {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 10px;
+.caller-status {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11px;
+  font-weight: 500;
+  margin-top: 1px;
 }
 
 .call-trailing {
@@ -703,6 +704,26 @@ body {
   width: 100%;
 }
 
+/* Call Controls Display depending on Expanded and Active state */
+.capsule.call:not(.expanded) .incoming-call-controls,
+.capsule.call:not(.expanded) .active-call-controls {
+  display: none !important;
+}
+
+.capsule.call.expanded:not(.call-active) .incoming-call-controls {
+  display: flex !important;
+}
+.capsule.call.expanded:not(.call-active) .active-call-controls {
+  display: none !important;
+}
+
+.capsule.call.expanded.call-active .incoming-call-controls {
+  display: none !important;
+}
+.capsule.call.expanded.call-active .active-call-controls {
+  display: flex !important;
+}
+
 .btn-action {
   flex: 1;
   display: inline-flex;
@@ -726,6 +747,14 @@ body {
 .btn-action.reject { background-color: #ba1a1a; } /* Coral Red */
 .btn-action.accept { background-color: #2e7d32; } /* Forest Green */
 .btn-action.mute-call { background-color: #3e3e4a; } /* Slate Gray */
+
+.btn-action.text-btn {
+  flex: none;
+  width: auto;
+  min-width: 90px;
+  border-radius: 20px;
+  padding: 8px 14px;
+}
 
 .icon-only-btn {
   max-width: 44px;
@@ -943,7 +972,93 @@ body {
   text-align: center;
 }
 
-/* Food/Cab Delivery State Styles */
+/* Cab Booking State Styles */
+.capsule.cab {
+  width: 155px;
+  height: 38px;
+}
+
+.capsule.cab.expanded {
+  width: 280px;
+  height: 135px;
+  border-radius: 28px;
+}
+
+.capsule.cab.expanded .content-cab {
+  padding-top: 6px;
+  gap: 10px;
+}
+
+.cab-leading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cab-icon {
+  color: var(--gold);
+  font-size: 18px;
+}
+
+.cab-title {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cab-trailing {
+  display: flex;
+  align-items: center;
+}
+
+.cab-eta {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cab-details {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 12px 16px;
+}
+
+.cab-status-text {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.cab-progress-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  margin-top: 6px;
+}
+
+.cab-progress-fill {
+  height: 100%;
+  background-color: var(--gold);
+  border-radius: 2px;
+}
+
+.cab-car-node {
+  position: absolute;
+  top: 50%;
+  left: 85%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  color: var(--gold);
+  background-color: #000;
+  padding: 1px;
+  border-radius: 50%;
+}
+
+/* Food Delivery State Styles */
 .capsule.food {
   width: 155px;
   height: 38px;
@@ -967,7 +1082,7 @@ body {
 }
 
 .food-icon {
-  color: var(--gold);
+  color: #ff9800; /* Zomato/Swiggy Orange Accent */
   font-size: 18px;
 }
 
@@ -983,7 +1098,7 @@ body {
 }
 
 .food-eta {
-  color: var(--gold);
+  color: #ff9800;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1002,7 +1117,7 @@ body {
   text-align: center;
 }
 
-.delivery-progress-track {
+.food-progress-track {
   position: relative;
   width: 100%;
   height: 4px;
@@ -1011,19 +1126,19 @@ body {
   margin-top: 6px;
 }
 
-.delivery-progress-fill {
+.food-progress-fill {
   height: 100%;
-  background-color: var(--gold);
+  background-color: #ff9800;
   border-radius: 2px;
 }
 
-.delivery-car-node {
+.food-delivery-node {
   position: absolute;
   top: 50%;
-  left: 80%;
+  left: 70%;
   transform: translate(-50%, -50%);
   font-size: 14px;
-  color: var(--gold);
+  color: #ff9800;
   background-color: #000;
   padding: 1px;
   border-radius: 50%;
@@ -1046,12 +1161,12 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.9) !important; /* Keep text white in both dark and light modes */
 }
 
 .simulator-tips .material-symbols-rounded {
   font-size: 32px;
-  color: var(--primary);
+  color: rgba(255, 255, 255, 0.95);
   animation: bounceTip 2s infinite;
 }
 
@@ -1066,15 +1181,37 @@ body {
   max-width: 200px;
 }
 
-/* Simulator controls tabs panel */
-.simulator-controls-panel {
+/* Simulator controls slider container */
+.simulator-controls-container {
   display: flex;
+  align-items: center;
   gap: 8px;
   background-color: var(--surface);
   border: 1px solid rgba(var(--outline), 0.1);
   padding: 6px;
   border-radius: var(--border-radius-l);
   max-width: 100%;
+  margin-top: 10px;
+  box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.simulator-controls-viewport {
+  width: 344px; /* fits 4 tabs (4 * 80 + 3 * 8) */
+  overflow: hidden;
+  display: flex;
+}
+
+@media (max-width: 480px) {
+  .simulator-controls-viewport {
+    width: 256px; /* fits 3 tabs on small screens */
+  }
+}
+
+.simulator-controls-track {
+  display: flex;
+  gap: 8px;
+  transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  width: max-content;
 }
 
 .control-tab {
@@ -1084,11 +1221,14 @@ body {
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  padding: 10px 18px;
+  width: 80px;
+  padding: 10px 0;
+  text-align: center;
   border-radius: var(--border-radius-m);
   cursor: pointer;
   transition: var(--transition-bounce);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .control-tab:hover {
@@ -1099,6 +1239,29 @@ body {
   background-color: var(--primary-container);
   color: var(--text-primary);
   box-shadow: 0 4px 10px var(--shadow-color);
+}
+
+.carousel-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  transition: var(--transition-bounce);
+}
+
+.carousel-arrow:hover {
+  background-color: rgba(var(--primary), 0.1);
+  color: var(--text-primary);
+}
+
+.carousel-arrow:active {
+  transform: scale(0.9);
 }
 
 /* Features grid with bouncy cards */
@@ -1568,4 +1731,103 @@ body {
   .tech-container, .availability-card {
     padding: 24px;
   }
+}
+
+/* iPhone Screen Brand Overlay Info */
+.device-brand-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+  opacity: 0.8;
+  transition: all 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 0.85; transform: translateY(0); }
+}
+
+.device-brand-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  transition: transform 0.3s ease;
+}
+
+.device-brand-info:hover .device-brand-logo {
+  transform: scale(1.08) rotate(5deg);
+}
+
+.device-brand-name {
+  font-size: 13px;
+  font-weight: 900;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Device Dock Styles at bottom of simulated screen */
+.device-dock {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 10px 14px;
+  border-radius: 24px;
+  margin: 0 16px 16px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+}
+
+.dock-app {
+  border: none;
+  background: transparent;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  transition: var(--transition-bounce);
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.dock-app:hover {
+  transform: scale(1.15) translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+}
+
+.dock-app:active {
+  transform: scale(0.92);
+}
+
+.dock-app span {
+  font-size: 22px;
+}
+
+/* Simulated App specific styles */
+.dock-app.phone-app,
+.dock-app.music-app,
+.dock-app.navigation-app {
+  background: transparent;
+}
+
+.dock-app.capsular-app {
+  background-color: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.dock-app.capsular-app img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }

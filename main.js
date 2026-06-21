@@ -20,6 +20,133 @@ const controlTabs = document.querySelectorAll('.control-tab');
 const statusBar = document.querySelector('.device-status-bar');
 let activeState = 'idle';
 
+// Carousel Slider setup
+const viewport = document.querySelector('.simulator-controls-viewport');
+const track = document.querySelector('.simulator-controls-track');
+const prevBtn = document.querySelector('.carousel-arrow.prev');
+const nextBtn = document.querySelector('.carousel-arrow.next');
+
+let slideIndex = 0;
+const tabWidth = 80;
+const gap = 8;
+let autoSlideInterval = null;
+let isReversing = false;
+
+function getVisibleCount() {
+  if (!viewport) return 4;
+  const viewportWidth = viewport.clientWidth;
+  return Math.round((viewportWidth + gap) / (tabWidth + gap));
+}
+
+function updateCarousel() {
+  if (!track) return;
+  const visibleCount = getVisibleCount();
+  const maxIndex = controlTabs.length - visibleCount;
+  
+  // Clamp index
+  if (slideIndex > maxIndex) slideIndex = maxIndex;
+  if (slideIndex < 0) slideIndex = 0;
+  
+  const offset = -slideIndex * (tabWidth + gap);
+  track.style.transform = `translateX(${offset}px)`;
+  
+  // Enable/disable arrows representation
+  if (prevBtn) {
+    prevBtn.style.opacity = slideIndex === 0 ? '0.3' : '1';
+    prevBtn.style.pointerEvents = slideIndex === 0 ? 'none' : 'auto';
+  }
+  if (nextBtn) {
+    nextBtn.style.opacity = slideIndex === maxIndex ? '0.3' : '1';
+    nextBtn.style.pointerEvents = slideIndex === maxIndex ? 'none' : 'auto';
+  }
+}
+
+function startAutoSlide() {
+  stopAutoSlide();
+  autoSlideInterval = setInterval(() => {
+    const visibleCount = getVisibleCount();
+    const maxIndex = controlTabs.length - visibleCount;
+    if (maxIndex <= 0) return;
+
+    if (!isReversing) {
+      if (slideIndex >= maxIndex) {
+        isReversing = true;
+        slideIndex--;
+      } else {
+        slideIndex++;
+      }
+    } else {
+      if (slideIndex <= 0) {
+        isReversing = false;
+        slideIndex++;
+      } else {
+        slideIndex--;
+      }
+    }
+    updateCarousel();
+  }, 3500);
+}
+
+function stopAutoSlide() {
+  if (autoSlideInterval) {
+    clearInterval(autoSlideInterval);
+    autoSlideInterval = null;
+  }
+}
+
+function handleManualInteraction() {
+  stopAutoSlide();
+  clearTimeout(window.autoSlideTimeout);
+  window.autoSlideTimeout = setTimeout(() => {
+    startAutoSlide();
+  }, 8000);
+}
+
+function scrollTabIntoView(stateName) {
+  const tabIndex = Array.from(controlTabs).findIndex(t => t.dataset.state === stateName);
+  if (tabIndex === -1) return;
+  
+  const visibleCount = getVisibleCount();
+  const maxIndex = controlTabs.length - visibleCount;
+  
+  if (tabIndex < slideIndex) {
+    slideIndex = tabIndex;
+  } else if (tabIndex >= slideIndex + visibleCount) {
+    slideIndex = tabIndex - visibleCount + 1;
+  }
+  
+  if (slideIndex > maxIndex) slideIndex = maxIndex;
+  if (slideIndex < 0) slideIndex = 0;
+  
+  updateCarousel();
+}
+
+// Set up carousel listeners
+if (prevBtn) {
+  prevBtn.addEventListener('click', () => {
+    handleManualInteraction();
+    slideIndex--;
+    updateCarousel();
+  });
+}
+
+if (nextBtn) {
+  nextBtn.addEventListener('click', () => {
+    handleManualInteraction();
+    slideIndex++;
+    updateCarousel();
+  });
+}
+
+// Initial carousel layout & start auto-slide
+window.addEventListener('resize', () => {
+  updateCarousel();
+});
+setTimeout(() => {
+  updateCarousel();
+  startAutoSlide();
+}, 100);
+
 // Function to update the real-time clock inside simulated iPhone
 function updateMockupClock() {
   const clockElement = document.getElementById('device-time');
@@ -61,6 +188,9 @@ function transitionCapsuleState(newState) {
     matchingTab.classList.add('active');
   }
 
+  // Scroll active tab into view
+  scrollTabIntoView(newState);
+
   // Handle Stopwatch auto-start/pause
   if (newState === 'timer') {
     if (typeof startStopwatch === 'function') {
@@ -72,11 +202,30 @@ function transitionCapsuleState(newState) {
       pauseStopwatch();
     }
   }
+
+  // End active call state if navigated away
+  if (newState !== 'call') {
+    if (typeof resetCallState === 'function') {
+      resetCallState();
+    }
+  }
 }
 
 // Click listener for control tabs
-controlTabs.forEach(tab => {
+controlTabs.forEach((tab, index) => {
   tab.addEventListener('click', () => {
+    handleManualInteraction();
+    
+    // Auto-switch carousel shift:
+    // If user clicks the 4th visible tab, shift right
+    // If user clicks the 1st visible tab, shift left
+    const visibleCount = getVisibleCount();
+    if (index === slideIndex + visibleCount - 1) {
+      slideIndex++;
+    } else if (index === slideIndex && slideIndex > 0) {
+      slideIndex--;
+    }
+    
     const targetState = tab.dataset.state;
     transitionCapsuleState(targetState);
   });
@@ -237,6 +386,9 @@ function startCallTimer() {
   callElapsedSeconds = 0;
   isCallActive = true;
   
+  // Set class on capsule to switch controls via CSS
+  capsule?.classList.add('call-active');
+  
   // Hide phone pulse icon, show visualizer bars
   if (phonePulseIcon) phonePulseIcon.style.display = 'none';
   if (callActiveVis) {
@@ -272,6 +424,9 @@ function resetCallState() {
   }
   isCallActive = false;
   callElapsedSeconds = 0;
+  
+  // Remove class on capsule to revert controls via CSS
+  capsule?.classList.remove('call-active');
   
   if (callerStatusText) {
     callerStatusText.textContent = 'Incoming Call';
@@ -448,5 +603,15 @@ document.addEventListener('keydown', (e) => {
 document.querySelectorAll('.screenshot-img').forEach(img => {
   img.addEventListener('load', () => {
     img.classList.add('loaded');
+  });
+});
+
+// Click listener for dock apps
+const dockApps = document.querySelectorAll('.dock-app');
+dockApps.forEach(app => {
+  app.addEventListener('click', () => {
+    handleManualInteraction();
+    const targetState = app.dataset.state;
+    transitionCapsuleState(targetState);
   });
 });
