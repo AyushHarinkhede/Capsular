@@ -27,8 +27,8 @@ const prevBtn = document.querySelector('.carousel-arrow.prev');
 const nextBtn = document.querySelector('.carousel-arrow.next');
 
 let slideIndex = 0;
-const tabWidth = 80;
-const gap = 8;
+const tabWidth = 72;
+const gap = 6;
 let autoSlideInterval = null;
 let isReversing = false;
 
@@ -208,6 +208,20 @@ function transitionCapsuleState(newState) {
     if (typeof resetCallState === 'function') {
       resetCallState();
     }
+  }
+
+  // Handle Record state timer
+  if (newState === 'record') {
+    startRecordTimer();
+  } else {
+    stopRecordTimer();
+  }
+
+  // Handle Face ID verification
+  if (newState === 'face_id') {
+    startFaceIdScanning();
+  } else {
+    resetFaceIdScanning();
   }
 }
 
@@ -614,4 +628,124 @@ dockApps.forEach(app => {
     const targetState = app.dataset.state;
     transitionCapsuleState(targetState);
   });
+});
+
+// Record State Logic
+let recordTimerInterval = null;
+let recordElapsedSeconds = 0;
+
+function startRecordTimer() {
+  stopRecordTimer();
+  recordElapsedSeconds = 0;
+  const timerTextEl = document.querySelector('.record-timer-text');
+  if (timerTextEl) timerTextEl.textContent = '00:00';
+  
+  recordTimerInterval = setInterval(() => {
+    recordElapsedSeconds++;
+    if (timerTextEl) {
+      timerTextEl.textContent = formatTime(recordElapsedSeconds);
+    }
+  }, 1000);
+}
+
+function stopRecordTimer() {
+  if (recordTimerInterval) {
+    clearInterval(recordTimerInterval);
+    recordTimerInterval = null;
+  }
+}
+
+// Face ID State Logic
+let faceIdScanTimeout = null;
+let faceIdVerifyTimeout = null;
+
+function startFaceIdScanning() {
+  resetFaceIdScanning();
+  
+  const scannerLine = document.querySelector('.scanner-line');
+  const scannerFace = document.querySelector('.scanner-face');
+  const faceIdStatus = document.querySelector('.face_id-status');
+  const faceAuthText = document.querySelector('.face_id-auth-text');
+  
+  if (scannerLine) scannerLine.style.display = 'block';
+  if (scannerFace) {
+    scannerFace.textContent = 'face';
+    scannerFace.style.color = 'var(--primary)';
+  }
+  if (faceIdStatus) faceIdStatus.textContent = 'Scanning...';
+  if (faceAuthText) faceAuthText.textContent = 'Verifying your identity...';
+  
+  faceIdScanTimeout = setTimeout(() => {
+    if (scannerLine) scannerLine.style.display = 'none';
+    if (scannerFace) {
+      scannerFace.textContent = 'check_circle';
+      scannerFace.style.color = '#2ecc71';
+    }
+    if (faceIdStatus) faceIdStatus.textContent = 'Verified!';
+    if (faceAuthText) faceAuthText.textContent = 'Identity authenticated successfully.';
+    
+    faceIdVerifyTimeout = setTimeout(() => {
+      transitionCapsuleState('idle');
+    }, 1200);
+  }, 2000);
+}
+
+function resetFaceIdScanning() {
+  clearTimeout(faceIdScanTimeout);
+  clearTimeout(faceIdVerifyTimeout);
+}
+
+// Hero Typing Animation
+const heroTitleText = "A fluid capsule overlay and quick controller";
+const typingTitleEl = document.getElementById('hero-typing-title');
+
+function startTypingAnimation() {
+  if (!typingTitleEl) return;
+  typingTitleEl.textContent = "";
+  let idx = 0;
+  
+  function typeChar() {
+    if (idx < heroTitleText.length) {
+      typingTitleEl.textContent += heroTitleText.charAt(idx);
+      idx++;
+      setTimeout(typeChar, 35); // Fast typing speed (35ms per character)
+    } else {
+      const cursor = document.querySelector('.typing-cursor');
+      if (cursor) {
+        cursor.style.animation = 'none';
+        cursor.style.opacity = '0';
+      }
+    }
+  }
+  
+  typeChar();
+}
+
+window.addEventListener('DOMContentLoaded', startTypingAnimation);
+
+// Footer Brand intersection animation
+const footerBrandSection = document.querySelector('.footer-brand-section');
+if (footerBrandSection) {
+  const brandObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        footerBrandSection.classList.add('animate-active');
+      } else {
+        footerBrandSection.classList.remove('animate-active');
+      }
+    });
+  }, { threshold: 0.15 });
+  
+  brandObserver.observe(footerBrandSection);
+}
+
+// Profile switchers inside capsule triggers
+document.querySelector('.content-silent .silent-disable')?.addEventListener('click', () => {
+  transitionCapsuleState('ring');
+});
+document.querySelector('.content-vibrate .vibrate-disable')?.addEventListener('click', () => {
+  transitionCapsuleState('ring');
+});
+document.querySelector('.content-ring .ring-disable')?.addEventListener('click', () => {
+  transitionCapsuleState('silent');
 });

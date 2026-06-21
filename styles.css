@@ -1185,7 +1185,7 @@ body {
 .simulator-controls-container {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background-color: var(--surface);
   border: 1px solid rgba(var(--outline), 0.1);
   padding: 6px;
@@ -1196,33 +1196,33 @@ body {
 }
 
 .simulator-controls-viewport {
-  width: 344px; /* fits 4 tabs (4 * 80 + 3 * 8) */
+  width: 306px; /* Fits exactly 4 tabs (4 * 72 + 3 * 6) matching iPhone screen width */
   overflow: hidden;
   display: flex;
 }
 
 @media (max-width: 480px) {
   .simulator-controls-viewport {
-    width: 256px; /* fits 3 tabs on small screens */
+    width: 228px; /* Fits exactly 3 tabs on small screens (3 * 72 + 2 * 6) */
   }
 }
 
 .simulator-controls-track {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
   width: max-content;
 }
 
 .control-tab {
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px; /* Slightly smaller for tab labels */
   font-weight: 700;
   border: none;
   background: transparent;
   color: var(--text-secondary);
-  width: 80px;
-  padding: 10px 0;
+  width: 72px;
+  padding: 8px 0;
   text-align: center;
   border-radius: var(--border-radius-m);
   cursor: pointer;
@@ -1651,29 +1651,175 @@ body {
   color: var(--text-secondary);
 }
 
-/* Footer Styling */
+/* Upgraded Footer Styling */
 .app-footer {
   background-color: var(--surface);
   border-top: 1px solid rgba(var(--outline), 0.1);
-  padding: 36px 0;
+  padding: 44px 0 24px 0;
   margin-top: 40px;
   text-align: center;
+  position: relative;
 }
 
 .footer-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  align-items: center;
+  gap: 16px;
 }
 
 .copyright {
   font-size: 13.5px;
   color: var(--text-secondary);
+  margin-top: 8px;
 }
 
 .footer-tagline {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-tertiary);
+}
+
+/* Social Buttons in Footer */
+.footer-social-links {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin: 8px 0;
+}
+
+.social-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.social-btn span {
+  font-size: 20px;
+}
+
+.social-btn:hover {
+  transform: translateY(-4px) scale(1.1);
+  color: #ffffff;
+}
+
+.social-btn.github:hover {
+  background-color: #24292e;
+  border-color: #444;
+  box-shadow: 0 4px 12px rgba(36, 41, 46, 0.5);
+}
+
+.social-btn.linkedin:hover {
+  background-color: #0077b5;
+  border-color: #0077b5;
+  box-shadow: 0 4px 12px rgba(0, 119, 181, 0.5);
+}
+
+.social-btn.email:hover {
+  background-color: var(--primary-container);
+  color: var(--text-primary);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(var(--primary), 0.35);
+}
+
+/* Privacy & Terms Links with hover cards */
+.footer-links-container {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 4px;
+}
+
+.footer-link-wrapper {
+  position: relative;
+}
+
+.footer-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.footer-link:hover {
+  color: var(--primary);
+  background-color: rgba(var(--primary), 0.08);
+  border-color: rgba(var(--primary), 0.2);
+}
+
+/* Absolute Hover Cards positioned above footer links */
+.hover-card {
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  width: 310px;
+  background: rgba(26, 26, 34, 0.95);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1000;
+  text-align: left;
+}
+
+.footer-link-wrapper:hover .hover-card {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0);
+}
+
+.hover-card h3 {
+  font-size: 14px;
+  color: #ffffff;
+  margin-bottom: 8px;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 6px;
+}
+
+.hover-card-content h4 {
+  font-size: 11.5px;
+  color: var(--primary);
+  margin: 8px 0 4px 0;
+  font-weight: 700;
+}
+
+.hover-card-content p {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.hover-card-content ul {
+  padding-left: 14px;
+  margin-bottom: 6px;
+}
+
+.hover-card-content li {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 3px;
+  line-height: 1.4;
 }
 
 /* Responsive configurations */
@@ -1830,4 +1976,200 @@ body {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* Typing cursor for Hero Title */
+.typing-cursor {
+  font-weight: 300;
+  color: var(--primary);
+  animation: blinkCursor 0.8s infinite;
+  display: inline-block;
+  margin-left: 2px;
+}
+
+@keyframes blinkCursor {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+/* GitHub repo button custom style */
+.btn-github {
+  background-color: #24292e;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.btn-github:hover {
+  background-color: #2b3137;
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* Footer Brand scroll scaling styling */
+.footer-brand-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.footer-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transform: scale(0.65);
+  opacity: 0.3;
+  transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 1.2s ease;
+}
+
+.footer-animated-brand {
+  font-size: 32px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  transform: scale(0.65);
+  opacity: 0.3;
+  transition: transform 1.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 1.2s ease;
+  margin: 0;
+}
+
+/* Activated class via IntersectionObserver in main.js */
+.footer-brand-section.animate-active .footer-logo,
+.footer-brand-section.animate-active .footer-animated-brand {
+  transform: scale(1.15);
+  opacity: 1;
+}
+
+/* CSS Styling for 11 New Capsule States */
+
+/* Record State */
+.capsule.record { width: 130px; height: 38px; }
+.capsule.record.expanded { width: 280px; height: 125px; }
+.capsule.record .record-leading { display: flex; align-items: center; gap: 8px; }
+.capsule.record .record-dot { width: 8px; height: 8px; background-color: #ba1a1a; border-radius: 50%; animation: blinkRecord 1s infinite alternate; }
+.capsule.record .record-label-text { color: #ba1a1a; font-weight: 800; font-size: 11px; letter-spacing: 0.5px; }
+.capsule.record .record-timer-text { color: #ffffff; font-weight: 700; font-size: 12px; }
+.record-details { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px 16px; }
+.record-info-text { color: rgba(255,255,255,0.7); font-size: 11px; margin: 0; }
+.record-actions { display: flex; gap: 8px; width: 100%; justify-content: center; }
+
+@keyframes blinkRecord {
+  from { opacity: 0.3; }
+  to { opacity: 1; }
+}
+
+/* Alarm State */
+.capsule.alarm { width: 145px; height: 38px; }
+.capsule.alarm.expanded { width: 280px; height: 125px; }
+.alarm-icon-ringing { color: var(--gold); font-size: 18px; animation: ringAlarm 0.4s infinite alternate ease-in-out; }
+.alarm-time-text { color: var(--gold); font-weight: 700; font-size: 12px; }
+.alarm-details { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 16px; }
+.alarm-info-text { color: #ffffff; font-size: 12px; text-align: center; margin: 0; }
+.alarm-actions { display: flex; gap: 8px; width: 100%; justify-content: center; }
+
+@keyframes ringAlarm {
+  0% { transform: rotate(-12deg); }
+  100% { transform: rotate(12deg); }
+}
+
+/* Charging State */
+.capsule.charging { width: 120px; height: 38px; }
+.capsule.charging.expanded { width: 280px; height: 135px; }
+.bolt-animate { color: var(--secondary); font-size: 18px; animation: boltPulse 1.5s infinite ease-in-out; }
+.charging-pct { color: var(--secondary); font-weight: 700; font-size: 12px; }
+.charging-details { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px 16px; }
+.battery-animation-container { position: relative; width: 100%; height: 20px; background-color: rgba(255,255,255,0.1); border-radius: 10px; border: 1.5px solid rgba(255,255,255,0.25); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.battery-juice { position: absolute; left: 0; top: 0; height: 100%; background: linear-gradient(90deg, #2ecc71, #27ae60); border-radius: 8px 0 0 8px; transition: width 0.5s ease; }
+.battery-percentage-big { position: relative; z-index: 2; color: #ffffff; font-size: 11px; font-weight: 800; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
+.charging-speed { color: rgba(255,255,255,0.7); font-size: 11px; text-align: center; margin: 0; }
+
+@keyframes boltPulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+/* Battery Low State */
+.capsule.battery_low { width: 125px; height: 38px; }
+.capsule.battery_low.expanded { width: 280px; height: 125px; }
+.battery-pulse { color: #ba1a1a; font-size: 18px; animation: pulseLow 1.2s infinite; }
+.battery_low-pct { color: #ba1a1a; font-weight: 700; font-size: 12px; }
+.battery_low-details { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 16px; }
+.battery_low-text { color: #ffffff; font-size: 12px; text-align: center; margin: 0; }
+.battery_low-actions { display: flex; gap: 8px; width: 100%; justify-content: center; }
+
+@keyframes pulseLow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* Earbuds State */
+.capsule.earbuds { width: 160px; height: 38px; }
+.capsule.earbuds.expanded { width: 280px; height: 145px; }
+.earbuds-icon { color: var(--tertiary); font-size: 18px; }
+.earbuds-status { color: var(--tertiary); font-weight: 700; font-size: 11px; }
+.earbuds-details { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px 16px; }
+.earbuds-grid { display: flex; width: 100%; justify-content: space-around; gap: 6px; }
+.earbud-item { display: flex; flex-direction: column; align-items: center; gap: 4px; background-color: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); padding: 6px 12px; border-radius: 12px; flex: 1; text-align: center; }
+.earbud-item span:first-child { font-size: 16px; color: var(--tertiary); }
+.earbud-item span:last-child { font-size: 11px; color: #ffffff; font-weight: 700; }
+.earbuds-audio-profile { color: rgba(255,255,255,0.7); font-size: 10px; text-align: center; margin: 0; }
+
+/* WiFi Connect State */
+.capsule.wifi_connect { width: 140px; height: 38px; }
+.capsule.wifi_connect.expanded { width: 280px; height: 130px; }
+.wifi-icon-color { color: var(--primary); font-size: 18px; }
+.wifi-ssid { color: var(--primary); font-weight: 700; font-size: 12px; }
+.wifi_connect-details { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px 16px; }
+.wifi-stats, .wifi-security { color: rgba(255,255,255,0.7); font-size: 11px; text-align: center; margin: 0; }
+
+/* DND State */
+.capsule.dnd { width: 120px; height: 38px; }
+.capsule.dnd.expanded { width: 280px; height: 120px; }
+.dnd-status { color: #b085f5; font-weight: 700; font-size: 12px; }
+.dnd-details { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 16px; }
+.dnd-desc { color: rgba(255,255,255,0.7); font-size: 11px; text-align: center; margin: 0; }
+
+/* Silent, Vibrate, Ring Profile States */
+.capsule.silent { width: 110px; height: 38px; }
+.capsule.silent.expanded { width: 280px; height: 115px; }
+.silent-status { color: #ff9800; font-weight: 700; font-size: 12px; }
+.silent-details { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 16px; }
+.silent-desc { color: rgba(255,255,255,0.7); font-size: 11px; text-align: center; margin: 0; }
+
+.capsule.vibrate { width: 115px; height: 38px; }
+.capsule.vibrate.expanded { width: 280px; height: 115px; }
+.vibrate-status { color: #3498db; font-weight: 700; font-size: 12px; }
+.vibrate-details { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 16px; }
+.vibrate-desc { color: rgba(255,255,255,0.7); font-size: 11px; text-align: center; margin: 0; }
+
+.capsule.ring { width: 105px; height: 38px; }
+.capsule.ring.expanded { width: 280px; height: 115px; }
+.ring-status { color: #2ecc71; font-weight: 700; font-size: 12px; }
+.ring-details { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 16px; }
+.ring-desc { color: rgba(255,255,255,0.7); font-size: 11px; text-align: center; margin: 0; }
+
+/* Face ID State */
+.capsule.face_id { width: 130px; height: 38px; }
+.capsule.face_id.expanded { width: 280px; height: 130px; }
+.face-id-icon-animate { color: var(--primary); font-size: 18px; animation: faceIdPulse 1.5s infinite; }
+.face_id-status { color: var(--primary); font-weight: 700; font-size: 11px; }
+.face_id-details { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 16px; }
+.face-scanner-container { position: relative; width: 44px; height: 44px; border: 1.5px solid rgba(255,255,255,0.25); border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; background-color: rgba(255,255,255,0.03); }
+.scanner-face { font-size: 28px; color: var(--primary); }
+.scanner-line { position: absolute; left: 0; width: 100%; height: 2px; background-color: var(--primary); animation: scanFace 1.5s infinite alternate ease-in-out; box-shadow: 0 0 8px var(--primary); }
+.face_id-auth-text { color: rgba(255,255,255,0.75); font-size: 11px; text-align: center; margin: 0; }
+
+@keyframes faceIdPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@keyframes scanFace {
+  0% { top: 0%; }
+  100% { top: 100%; }
 }

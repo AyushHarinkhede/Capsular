@@ -126,13 +126,19 @@
     <!-- Hero Section -->
     <section class="hero-section">
       <div class="hero-text-content">
-        <h1 class="hero-title">A fluid capsule overlay and quick controller</h1>
+        <h1 class="hero-title"><span id="hero-typing-title"></span><span class="typing-cursor">|</span></h1>
         <p class="hero-subtitle">
           Groups your active tasks, status indicators, and background utilities into an interactive capsule. Built from the ground up for custom controls, active visualizers, and swift system actions.
         </p>
         <div class="hero-buttons">
           <a href="./app/build/outputs/apk/debug/app-debug.apk" class="btn btn-filled btn-large" download>
             <span class="material-symbols-rounded">download</span> Download Latest APK
+          </a>
+          <a href="https://github.com/AyushHarinkhede/Capsular" target="_blank" rel="noopener" class="btn btn-github btn-large">
+            <svg class="github-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="margin-right: 8px; display: inline-block; vertical-align: middle;">
+              <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+            </svg>
+            GitHub Repository
           </a>
           <a href="#features" class="btn btn-outlined btn-large">Explore Features</a>
         </div>
@@ -349,6 +355,233 @@
                   </div>
                 </div>
 
+                <!-- Record State Content -->
+                <div class="capsule-content content-record">
+                  <div class="capsule-top-row">
+                    <div class="record-leading">
+                      <span class="record-dot"></span>
+                      <span class="record-label-text">REC</span>
+                    </div>
+                    <div class="record-trailing">
+                      <span class="record-timer-text">00:00</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only record-details">
+                    <p class="record-info-text">Screen & Audio Recording</p>
+                    <div class="record-actions">
+                      <button class="btn-action stop-record reject" aria-label="Stop Record"><span class="material-symbols-rounded">stop</span> Stop</button>
+                      <button class="btn-action capture-screenshot accept" aria-label="Capture Screenshot"><span class="material-symbols-rounded">photo_camera</span> Shot</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Alarm State Content -->
+                <div class="capsule-content content-alarm">
+                  <div class="capsule-top-row">
+                    <div class="alarm-leading">
+                      <span class="material-symbols-rounded alarm-icon-ringing">alarm</span>
+                      <span class="alarm-title expanded-only">Alarm</span>
+                    </div>
+                    <div class="alarm-trailing">
+                      <span class="alarm-time-text">07:30 AM</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only alarm-details">
+                    <p class="alarm-info-text">Good Morning! Time to wake up.</p>
+                    <div class="alarm-actions">
+                      <button class="btn-action alarm-snooze accept"><span class="material-symbols-rounded">snooze</span> Snooze</button>
+                      <button class="btn-action alarm-dismiss reject"><span class="material-symbols-rounded">close</span> Dismiss</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Charging State Content -->
+                <div class="capsule-content content-charging">
+                  <div class="capsule-top-row">
+                    <div class="charging-leading">
+                      <span class="material-symbols-rounded text-green-accent bolt-animate">bolt</span>
+                      <span class="charging-title expanded-only">Charging</span>
+                    </div>
+                    <div class="charging-trailing">
+                      <span class="charging-pct">85%</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only charging-details">
+                    <div class="battery-animation-container">
+                      <div class="battery-juice" style="width: 85%;"></div>
+                      <span class="battery-percentage-big">85% Charged</span>
+                    </div>
+                    <p class="charging-speed">SuperVOOC 65W • 12 min to full</p>
+                  </div>
+                </div>
+
+                <!-- Battery Low State Content -->
+                <div class="capsule-content content-battery_low">
+                  <div class="capsule-top-row">
+                    <div class="battery_low-leading">
+                      <span class="material-symbols-rounded text-red-accent battery-pulse">battery_alert</span>
+                      <span class="battery_low-title expanded-only">Battery Low</span>
+                    </div>
+                    <div class="battery_low-trailing">
+                      <span class="battery_low-pct">15%</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only battery_low-details">
+                    <p class="battery_low-text">15% remaining. Enable Power Saver?</p>
+                    <div class="battery_low-actions">
+                      <button class="btn-action saver-enable accept">Enable</button>
+                      <button class="btn-action saver-dismiss">Dismiss</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Earbuds State Content -->
+                <div class="capsule-content content-earbuds">
+                  <div class="capsule-top-row">
+                    <div class="earbuds-leading">
+                      <span class="material-symbols-rounded earbuds-icon">headphones</span>
+                      <span class="earbuds-title expanded-only">AirPods Pro</span>
+                    </div>
+                    <div class="earbuds-trailing">
+                      <span class="earbuds-status">Connected</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only earbuds-details">
+                    <div class="earbuds-grid">
+                      <div class="earbud-item">
+                        <span class="material-symbols-rounded">headset</span>
+                        <span>L: 80%</span>
+                      </div>
+                      <div class="earbud-item">
+                        <span class="material-symbols-rounded">headset</span>
+                        <span>R: 82%</span>
+                      </div>
+                      <div class="earbud-item">
+                        <span class="material-symbols-rounded">cell_tower</span>
+                        <span>Case: 65%</span>
+                      </div>
+                    </div>
+                    <p class="earbuds-audio-profile">Noise Cancellation Active</p>
+                  </div>
+                </div>
+
+                <!-- WiFi Connect State Content -->
+                <div class="capsule-content content-wifi_connect">
+                  <div class="capsule-top-row">
+                    <div class="wifi_connect-leading">
+                      <span class="material-symbols-rounded wifi-icon-color">wifi</span>
+                      <span class="wifi_connect-title expanded-only">WiFi Connected</span>
+                    </div>
+                    <div class="wifi_connect-trailing">
+                      <span class="wifi-ssid">Jio_5G</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only wifi_connect-details">
+                    <p class="wifi-stats">Connected • Speed: 150 Mbps</p>
+                    <p class="wifi-security">Security: WPA3 Personal</p>
+                    <button class="btn-action wifi-disconnect reject">Disconnect</button>
+                  </div>
+                </div>
+
+                <!-- DND State Content -->
+                <div class="capsule-content content-dnd">
+                  <div class="capsule-top-row">
+                    <div class="dnd-leading">
+                      <span class="material-symbols-rounded text-purple-accent">do_not_disturb_on</span>
+                      <span class="dnd-title expanded-only">Focus Mode</span>
+                    </div>
+                    <div class="dnd-trailing">
+                      <span class="dnd-status">DND On</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only dnd-details">
+                    <p class="dnd-desc">Calls and notifications are silenced.</p>
+                    <button class="btn-action dnd-disable">Turn Off</button>
+                  </div>
+                </div>
+
+                <!-- Silent State Content -->
+                <div class="capsule-content content-silent">
+                  <div class="capsule-top-row">
+                    <div class="silent-leading">
+                      <span class="material-symbols-rounded text-orange-accent">notifications_off</span>
+                      <span class="silent-title expanded-only">Profile</span>
+                    </div>
+                    <div class="silent-trailing">
+                      <span class="silent-status">Silent</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only silent-details">
+                    <p class="silent-desc">Sound is turned off. Screen will light up.</p>
+                    <button class="btn-action silent-disable accept">Switch to Ring</button>
+                  </div>
+                </div>
+
+                <!-- Vibrate State Content -->
+                <div class="capsule-content content-vibrate">
+                  <div class="capsule-top-row">
+                    <div class="vibrate-leading">
+                      <span class="material-symbols-rounded text-blue-accent">vibration</span>
+                      <span class="vibrate-title expanded-only">Profile</span>
+                    </div>
+                    <div class="vibrate-trailing">
+                      <span class="vibrate-status">Vibrate</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only vibrate-details">
+                    <p class="vibrate-desc">Device will vibrate for calls.</p>
+                    <button class="btn-action vibrate-disable accept">Switch to Ring</button>
+                  </div>
+                </div>
+
+                <!-- Ring State Content -->
+                <div class="capsule-content content-ring">
+                  <div class="capsule-top-row">
+                    <div class="ring-leading">
+                      <span class="material-symbols-rounded text-green-accent">notifications</span>
+                      <span class="ring-title expanded-only">Profile</span>
+                    </div>
+                    <div class="ring-trailing">
+                      <span class="ring-status">Ring</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only ring-details">
+                    <p class="ring-desc">Alert sounds are enabled.</p>
+                    <button class="btn-action ring-disable reject">Switch to Silent</button>
+                  </div>
+                </div>
+
+                <!-- Face ID State Content -->
+                <div class="capsule-content content-face_id">
+                  <div class="capsule-top-row">
+                    <div class="face_id-leading">
+                      <span class="material-symbols-rounded face-id-icon-animate">face</span>
+                      <span class="face_id-title expanded-only">Face ID</span>
+                    </div>
+                    <div class="face_id-trailing">
+                      <span class="face_id-status">Scanning...</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls -->
+                  <div class="expanded-only face_id-details">
+                    <div class="face-scanner-container">
+                      <div class="scanner-line"></div>
+                      <span class="material-symbols-rounded scanner-face">face</span>
+                    </div>
+                    <p class="face_id-auth-text">Verifying your identity...</p>
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -370,41 +603,62 @@
             <div class="device-dock">
               <button class="dock-app phone-app" data-state="call" aria-label="Phone App">
                 <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-                  <rect width="64" height="64" rx="15" fill="url(#phoneGrad)"/>
+                  <rect width="64" height="64" rx="15" fill="url(#phoneGrad)" />
+                  <path d="M12 12 C18 4, 46 4, 52 12" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="6" stroke-linecap="round" />
                   <defs>
                     <linearGradient id="phoneGrad" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="#62e662"/>
-                      <stop offset="100%" stop-color="#19c719"/>
+                      <stop offset="0%" stop-color="#34C759"/>
+                      <stop offset="100%" stop-color="#11a63c"/>
                     </linearGradient>
+                    <filter id="iconShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="2.5" stdDeviation="1.5" flood-opacity="0.25"/>
+                    </filter>
                   </defs>
-                  <path d="M45.1 36.9c-2.3-1.5-4.7-1.7-6.2.2l-1.3 1.6c-.7.9-1.8 1.1-2.9.5-3.3-1.8-6.1-4.6-7.9-7.9-.6-1.1-.4-2.2.5-2.9l1.6-1.3c1.9-1.5 1.7-3.9.2-6.2l-3.3-5.2c-1.5-2.3-3.9-2.3-5.8-.3L17.5 18c-2.6 2.6-3.3 6.6-1.7 10.7 3.3 8.3 9.9 14.9 18.2 18.2 4.1 1.6 8.1.9 10.7-1.7l2.6-2.5c2-2 .1-4.3-2.2-5.8l-5-3.1z" fill="#fff"/>
+                  <path d="M45.1 36.9c-2.3-1.5-4.7-1.7-6.2.2l-1.3 1.6c-.7.9-1.8 1.1-2.9.5-3.3-1.8-6.1-4.6-7.9-7.9-.6-1.1-.4-2.2.5-2.9l1.6-1.3c1.9-1.5 1.7-3.9.2-6.2l-3.3-5.2c-1.5-2.3-3.9-2.3-5.8-.3L17.5 18c-2.6 2.6-3.3 6.6-1.7 10.7 3.3 8.3 9.9 14.9 18.2 18.2 4.1 1.6 8.1.9 10.7-1.7l2.6-2.5c2-2 .1-4.3-2.2-5.8l-5-3.1z" fill="#fff" filter="url(#iconShadow)"/>
                 </svg>
               </button>
               <button class="dock-app music-app" data-state="music" aria-label="Music App">
                 <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
                   <rect width="64" height="64" rx="15" fill="url(#musicGrad)"/>
+                  <path d="M12 12 C18 4, 46 4, 52 12" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="6" stroke-linecap="round" />
                   <defs>
                     <linearGradient id="musicGrad" x1="0" y1="0" x2="0" y2="64" gradientUnits="userSpaceOnUse">
-                      <stop offset="0%" stop-color="#ff5e80"/>
-                      <stop offset="100%" stop-color="#ff2a54"/>
+                      <stop offset="0%" stop-color="#fd4b72"/>
+                      <stop offset="50%" stop-color="#f21e58"/>
+                      <stop offset="100%" stop-color="#d60036"/>
                     </linearGradient>
+                    <filter id="iconShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="2.5" stdDeviation="1.5" flood-opacity="0.25"/>
+                    </filter>
                   </defs>
-                  <path d="M44 16 L24 20 V40 C22.5 39 20 38.5 18 38.5 C13 38.5 9 41.5 9 45 C9 48.5 13 51.5 18 51.5 C23 51.5 27 48.5 27 45 V25 L41 22.2 V35 C39.5 34 37 33.5 35 33.5 C30 33.5 26 36.5 26 40 C26 43.5 30 46.5 35 46.5 C40 46.5 44 43.5 44 40 V16 Z" fill="#fff"/>
+                  <path d="M44 16 L24 20 V40 C22.5 39 20 38.5 18 38.5 C13 38.5 9 41.5 9 45 C9 48.5 13 51.5 18 51.5 C23 51.5 27 48.5 27 45 V25 L41 22.2 V35 C39.5 34 37 33.5 35 33.5 C30 33.5 26 36.5 26 40 C26 43.5 30 46.5 35 46.5 C40 46.5 44 43.5 44 40 V16 Z" fill="#fff" filter="url(#iconShadow)"/>
                 </svg>
               </button>
               <button class="dock-app navigation-app" data-state="navigation" aria-label="Navigation App">
                 <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: 100%;">
-                  <rect width="64" height="64" rx="15" fill="#e5e5e0"/>
-                  <path d="M0 0h24v24C15 24 6 15 0 6V0z" fill="#c3e6c3"/>
-                  <path d="M40 40h24v24H40V40z" fill="#d2f0d2"/>
-                  <path d="M12 52c12-18 24-20 40-24" stroke="#1b85ff" stroke-width="5" stroke-linecap="round" fill="none"/>
-                  <path d="M0 28h64" stroke="#fff" stroke-width="8"/>
-                  <path d="M0 28h64" stroke="#fbdc5c" stroke-width="4"/>
-                  <path d="M8 64L56 0" stroke="#fff" stroke-width="8"/>
-                  <path d="M8 64L56 0" stroke="#e0e0e0" stroke-width="5"/>
-                  <circle cx="12" cy="52" r="6" fill="#1b85ff" stroke="#fff" stroke-width="2"/>
-                  <g transform="translate(52, 28) rotate(45)">
-                    <path d="M0 -8l6 14-6-4-6 4 6-14z" fill="#1b85ff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+                  <rect width="64" height="64" rx="15" fill="#f4f3f0"/>
+                  <defs>
+                    <filter id="mapShadow" x="-20%" y="-20%" width="140%" height="140%">
+                      <feDropShadow dx="0" dy="2" stdDeviation="1" flood-opacity="0.35"/>
+                    </filter>
+                  </defs>
+                  <!-- Green park area -->
+                  <path d="M0 0 H28 V24 Q18 24 10 14 T0 0 Z" fill="#d0eed0"/>
+                  <!-- Blue river/water area -->
+                  <path d="M40 0 C48 12, 54 20, 64 24 V0 Z" fill="#cbe3f8"/>
+                  <!-- Highway road -->
+                  <path d="M0 32 H64" stroke="#ffffff" stroke-width="9" />
+                  <path d="M0 32 H64" stroke="#ffcc00" stroke-width="5" />
+                  <!-- Local intersecting road -->
+                  <path d="M22 64 L48 0" stroke="#ffffff" stroke-width="9" />
+                  <path d="M22 64 L48 0" stroke="#dcdbda" stroke-width="5" />
+                  <!-- Location indicator blue circle and chevron -->
+                  <circle cx="15" cy="48" r="7" fill="#1b85ff" stroke="#ffffff" stroke-width="2" filter="url(#mapShadow)"/>
+                  <!-- Apple maps style shield badge -->
+                  <path d="M48 20 C48 16 54 16 54 20 C54 24 48 24 48 20 Z" fill="#ba1a1a" />
+                  <!-- Navigation chevron arrow -->
+                  <g transform="translate(38, 20) rotate(40)" filter="url(#mapShadow)">
+                    <path d="M0 -7 L5 9 L0 5 L-5 9 Z" fill="#1b85ff" stroke="#ffffff" stroke-width="1.5" stroke-linejoin="round"/>
                   </g>
                 </svg>
               </button>
@@ -431,6 +685,17 @@
               <button class="control-tab" data-state="navigation">Nav</button>
               <button class="control-tab" data-state="cab">Cab</button>
               <button class="control-tab" data-state="food">Food</button>
+              <button class="control-tab" data-state="record">Record</button>
+              <button class="control-tab" data-state="alarm">Alarm</button>
+              <button class="control-tab" data-state="charging">Charge</button>
+              <button class="control-tab" data-state="battery_low">Bat Low</button>
+              <button class="control-tab" data-state="earbuds">Buds</button>
+              <button class="control-tab" data-state="wifi_connect">WiFi</button>
+              <button class="control-tab" data-state="dnd">DND</button>
+              <button class="control-tab" data-state="silent">Silent</button>
+              <button class="control-tab" data-state="vibrate">Vibe</button>
+              <button class="control-tab" data-state="ring">Ring</button>
+              <button class="control-tab" data-state="face_id">FaceID</button>
             </div>
           </div>
           
@@ -626,8 +891,66 @@
   <!-- Footer -->
   <footer class="app-footer">
     <div class="footer-container">
-      <p class="copyright">Copyright © 2026 Ayush Harinkhede. All rights reserved.</p>
+      <div class="footer-brand-section">
+        <img src="logo.png" alt="Capsular Logo" class="footer-logo" onerror="this.src='https://img.shields.io/badge/Capsular-6750A4?style=for-the-badge'">
+        <h2 class="footer-animated-brand">Capsular</h2>
+      </div>
       <p class="footer-tagline">Created for flexible, physics-based notifications.</p>
+
+      <!-- Social Profile Connections -->
+      <div class="footer-social-links">
+        <a href="https://github.com/AyushHarinkhede" target="_blank" rel="noopener" class="social-btn github" aria-label="GitHub Profile">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+          </svg>
+        </a>
+        <a href="https://www.linkedin.com/?fbclid=PAT01DUASkH6BleHRuA2FlbQIxMABzcnRjBmFwcF9pZA81NjcwNjczNDMzNTI0MjcAAaf9-bDO79T4j5D0COqPBgXR0X9Pg2MJhRY4dgU-SsMLCuk1mmtBND29lFprSw_aem_M901L8bZ-uR1-VOvOFqqGg" target="_blank" rel="noopener" class="social-btn linkedin" aria-label="LinkedIn Profile">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.779-1.75-1.75s.784-1.75 1.75-1.75 1.75.779 1.75 1.75-.784 1.75-1.75 1.75zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+          </svg>
+        </a>
+        <a href="mailto:ayushharinkhere2005@gmail.com" class="social-btn email" aria-label="Send Email">
+          <span class="material-symbols-rounded">mail</span>
+        </a>
+      </div>
+
+      <!-- Privacy & Terms Links with hover cards -->
+      <div class="footer-links-container">
+        <div class="footer-link-wrapper">
+          <a href="#" class="footer-link" onclick="event.preventDefault()">Privacy Policy</a>
+          <div class="hover-card privacy-card">
+            <h3>Privacy Policy</h3>
+            <div class="hover-card-content">
+              <h4>APK Permissions</h4>
+              <ul>
+                <li><strong>System Overlay (Draw over apps)</strong>: Displays the fluid capsule overlay on top of any active app screen.</li>
+                <li><strong>NFC Access</strong>: Detects registered keys (e.g., smart watch/Chetak keys) to run preset profiles on touch.</li>
+                <li><strong>Bluetooth Connect</strong>: Tracks headphone connection state to trigger active battery & connect cards.</li>
+                <li><strong>Start on Boot</strong>: Automatically starts the background helper service when your device boots up.</li>
+              </ul>
+              <h4>User Protection</h4>
+              <p>All settings, automation keys, and notification data are processed 100% locally. Capsular runs offline with no network permissions, ensuring user data privacy is never compromised.</p>
+              <h4>Webpage Privacy</h4>
+              <p>This static webpage does not store cookies or track visitor analytics.</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="footer-link-wrapper">
+          <a href="#" class="footer-link" onclick="event.preventDefault()">Terms & Conditions</a>
+          <div class="hover-card terms-card">
+            <h3>Terms & Conditions</h3>
+            <div class="hover-card-content">
+              <h4>APK Usage Terms</h4>
+              <p>Capsular is an open-source visual assistant. System overlay displays and custom automation shortcuts require manual permission authorization by the user. The app is provided "as is" without warranty.</p>
+              <h4>Webpage Terms</h4>
+              <p>The code, branding, layouts, and assets of this site are copyrighted by Ayush Harinkhede. Cloning or unauthorized redistribution is prohibited.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="copyright">Copyright © 2026 Ayush Harinkhede. All rights reserved.</p>
     </div>
   </footer>
 
