@@ -423,9 +423,31 @@ body {
 }
 
 .capsule-content {
-  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
-  transition: opacity 0.25s ease-in-out;
+  transform: translateX(20px);
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Active State Content Transitions */
+.capsule.idle .content-idle,
+.capsule.music .content-music,
+.capsule.call .content-call,
+.capsule.nfc .content-nfc,
+.capsule.timer .content-timer,
+.capsule.navigation .content-navigation,
+.capsule.food .content-food {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
 }
 
 /* Interactive Capsule States */
@@ -440,7 +462,6 @@ body {
   align-items: center;
   width: 100%;
   height: 100%;
-  opacity: 1;
 }
 
 .camera-lens {
@@ -457,20 +478,22 @@ body {
   pointer-events: none;
 }
 
-.camera-lens::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.35);
+/* Green dot reflection removed by deleting camera-lens::after */
+
+/* Capsule Top Row */
+.capsule-top-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 38px;
+  padding: 0 14px;
+  box-sizing: border-box;
 }
 
 /* Music Capsule State Styles */
 .capsule.music {
-  width: 200px;
+  width: 165px;
   height: 38px;
 }
 
@@ -480,21 +503,9 @@ body {
   border-radius: 28px;
 }
 
-.capsule.music .content-music {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
-  padding: 0 14px;
-  opacity: 1;
-}
-
 .capsule.music.expanded .content-music {
-  flex-direction: column;
-  justify-content: flex-start;
-  padding: 40px 16px 16px 16px; /* Clear camera lens */
-  gap: 12px;
+  padding-top: 6px;
+  gap: 8px;
 }
 
 .music-leading {
@@ -513,21 +524,11 @@ body {
   font-size: 12px;
   font-weight: 700;
   letter-spacing: -0.2px;
-  transition: font-size 0.3s;
-}
-
-.capsule.music.expanded .track-name {
-  font-size: 15px;
 }
 
 .track-artist {
   color: rgba(255, 255, 255, 0.6);
   font-size: 10px;
-  transition: font-size 0.3s;
-}
-
-.capsule.music.expanded .track-artist {
-  font-size: 12px;
 }
 
 .music-trailing {
@@ -575,7 +576,8 @@ body {
 
 .music-controls {
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  padding: 0 16px 12px 16px;
 }
 
 .progress-bar-container {
@@ -627,31 +629,19 @@ body {
 
 /* Call Capsule State Styles */
 .capsule.call {
-  width: 200px;
+  width: 165px;
   height: 38px;
 }
 
 .capsule.call.expanded {
   width: 280px;
-  height: 130px;
+  height: 120px;
   border-radius: 28px;
 }
 
-.capsule.call .content-call {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
-  padding: 0 14px;
-  opacity: 1;
-}
-
 .capsule.call.expanded .content-call {
-  flex-direction: column;
-  justify-content: flex-start;
-  padding: 40px 16px 16px 16px; /* Clear camera lens */
-  gap: 16px;
+  padding-top: 6px;
+  gap: 12px;
 }
 
 .call-leading {
@@ -666,27 +656,27 @@ body {
   border-radius: 50%;
   padding: 4px;
   font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
 }
 
 .call-details {
-  display: none;
   flex-direction: column;
   text-align: left;
 }
 
-.capsule.call.expanded .call-details {
-  display: flex;
-}
-
 .caller-name {
   color: #ffffff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .caller-number {
   color: rgba(255, 255, 255, 0.6);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .call-trailing {
@@ -707,7 +697,8 @@ body {
 
 .call-actions {
   display: flex;
-  gap: 12px;
+  gap: 10px;
+  padding: 0 16px 12px 16px;
 }
 
 .btn-action {
@@ -718,8 +709,8 @@ body {
   gap: 6px;
   border: none;
   border-radius: 12px;
-  padding: 8px 16px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   color: #ffffff;
@@ -730,12 +721,13 @@ body {
   transform: translateY(-2px);
 }
 
-.btn-action.reject { background-color: var(--md-sys-color-error-light); }
-.btn-action.accept { background-color: var(--md-sys-color-tertiary-light); }
+.btn-action.reject { background-color: #ba1a1a; } /* Coral Red */
+.btn-action.accept { background-color: #2e7d32; } /* Forest Green */
+.btn-action.mute-call { background-color: #3e3e4a; } /* Slate Gray */
 
 /* NFC Capsule State Styles */
 .capsule.nfc {
-  width: 220px;
+  width: 115px;
   height: 38px;
 }
 
@@ -745,21 +737,9 @@ body {
   border-radius: 28px;
 }
 
-.capsule.nfc .content-nfc {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  height: 100%;
-  padding: 0 14px;
-  opacity: 1;
-}
-
 .capsule.nfc.expanded .content-nfc {
-  flex-direction: column;
-  justify-content: flex-start;
-  padding: 40px 16px 16px 16px; /* Clear camera lens */
-  gap: 12px;
+  padding-top: 6px;
+  gap: 8px;
 }
 
 .nfc-leading {
@@ -774,7 +754,6 @@ body {
 }
 
 .nfc-details {
-  display: flex;
   flex-direction: column;
   text-align: left;
 }
@@ -785,18 +764,18 @@ body {
   font-weight: 700;
 }
 
-.nfc-status {
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 10px;
+.text-green-accent {
+  color: var(--secondary);
 }
 
 .nfc-expanded {
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  padding: 0 16px 12px 16px;
 }
 
-.nfc-info {
+.nfc-info, .nfc-action-desc {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.75);
   text-align: center;
@@ -807,6 +786,225 @@ body {
   padding: 6px 16px;
   border-radius: 8px;
   width: auto;
+  margin-top: 4px;
+}
+
+/* Timer / Stopwatch Capsule State Styles */
+.capsule.timer {
+  width: 155px;
+  height: 38px;
+}
+
+.capsule.timer.expanded {
+  width: 280px;
+  height: 120px;
+  border-radius: 28px;
+}
+
+.capsule.timer.expanded .content-timer {
+  padding-top: 6px;
+  gap: 12px;
+}
+
+.timer-leading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timer-icon {
+  color: var(--secondary);
+  font-size: 18px;
+}
+
+.timer-label-text {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.timer-trailing {
+  display: flex;
+  align-items: center;
+}
+
+.timer-display-digits {
+  font-family: monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--secondary);
+  letter-spacing: 0.5px;
+}
+
+.timer-controls {
+  display: flex;
+  gap: 8px;
+  padding: 0 16px 12px 16px;
+}
+
+.timer-controls .btn-action {
+  padding: 6px 12px;
+}
+
+.timer-controls .timer-toggle {
+  background-color: #ffffff;
+  color: #000000;
+}
+
+.timer-controls .timer-lap, .timer-controls .timer-reset {
+  background-color: #222226;
+  color: #ffffff;
+}
+
+/* Navigation Capsule State Styles */
+.capsule.navigation {
+  width: 155px;
+  height: 38px;
+}
+
+.capsule.navigation.expanded {
+  width: 280px;
+  height: 120px;
+  border-radius: 28px;
+}
+
+.capsule.navigation.expanded .content-navigation {
+  padding-top: 6px;
+  gap: 10px;
+}
+
+.nav-leading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-icon {
+  color: var(--primary);
+  font-size: 18px;
+}
+
+.nav-title {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nav-trailing {
+  display: flex;
+  align-items: center;
+}
+
+.nav-distance {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nav-details {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 16px 12px 16px;
+}
+
+.nav-instruction {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.nav-eta {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10px;
+  text-align: center;
+}
+
+/* Food/Cab Delivery State Styles */
+.capsule.food {
+  width: 155px;
+  height: 38px;
+}
+
+.capsule.food.expanded {
+  width: 280px;
+  height: 135px;
+  border-radius: 28px;
+}
+
+.capsule.food.expanded .content-food {
+  padding-top: 6px;
+  gap: 10px;
+}
+
+.food-leading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.food-icon {
+  color: var(--gold);
+  font-size: 18px;
+}
+
+.food-title {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.food-trailing {
+  display: flex;
+  align-items: center;
+}
+
+.food-eta {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.food-details {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 12px 16px;
+}
+
+.food-status-text {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.delivery-progress-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  margin-top: 6px;
+}
+
+.delivery-progress-fill {
+  height: 100%;
+  background-color: var(--gold);
+  border-radius: 2px;
+}
+
+.delivery-car-node {
+  position: absolute;
+  top: 50%;
+  left: 80%;
+  transform: translate(-50%, -50%);
+  font-size: 14px;
+  color: var(--gold);
+  background-color: #000;
+  padding: 1px;
+  border-radius: 50%;
 }
 
 /* Device screen instructions backdrop */
