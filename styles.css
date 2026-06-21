@@ -1674,17 +1674,20 @@ body {
 .app-footer {
   background-color: var(--surface);
   border-top: 1px solid rgba(var(--outline), 0.1);
-  padding: 44px 0 24px 0;
+  padding: 50px 0 30px 0;
   margin-top: 40px;
-  text-align: center;
   position: relative;
 }
 
 .footer-container {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  flex-wrap: wrap;
+  gap: 32px;
 }
 
 .copyright {
@@ -1890,7 +1893,9 @@ body {
   }
   
   .header-download {
-    display: none;
+    display: inline-flex !important;
+    padding: 8px 12px;
+    font-size: 11px;
   }
   
   .tech-container, .availability-card {
@@ -2031,7 +2036,6 @@ body {
 /* Footer Brand scroll scaling styling */
 .footer-brand-section {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
@@ -2234,5 +2238,88 @@ body {
     opacity: 1;
     pointer-events: auto;
     transform: translateY(0);
+  }
+}
+
+/* Align leading icons and titles horizontally for the 10 new capsule states */
+.alarm-leading,
+.charging-leading,
+.battery_low-leading,
+.earbuds-leading,
+.wifi_connect-leading,
+.dnd-leading,
+.silent-leading,
+.vibrate-leading,
+.ring-leading,
+.face_id-leading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Force consistent sizing for all compact (collapsed) capsule states */
+.capsule:not(.expanded) {
+  width: 130px !important;
+  height: 38px !important;
+  border-radius: 19px !important;
+}
+
+/* Adapt footer brand text color in light theme for readability */
+body.light-theme .footer-animated-brand {
+  color: var(--text-primary) !important;
+}
+
+/* Structured layout for footer containers */
+.footer-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 8px;
+}
+
+.footer-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  gap: 16px;
+}
+
+.footer-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 32px;
+  padding-top: 16px;
+  text-align: center;
+  width: 100%;
+}
+
+body.light-theme .footer-bottom {
+  border-top-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Circle button style for hero GitHub repository link */
+.btn-github.btn-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  padding: 0;
+  min-width: unset;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .footer-container {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 24px;
+  }
+  .footer-left, .footer-right {
+    align-items: center;
+    text-align: center;
   }
 }

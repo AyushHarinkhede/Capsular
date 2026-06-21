@@ -922,7 +922,7 @@ document.querySelector('.content-wifi_connect .wifi-disconnect')?.addEventListen
     btn.classList.remove('accept');
     btn.classList.add('reject');
     if (statsEl) statsEl.textContent = 'Connected • Speed: 150 Mbps';
-    if (ssidEl) ssidEl.textContent = 'Jio_5G';
+    if (ssidEl) ssidEl.textContent = 'WiFi_5G';
     if (iconEl) {
       iconEl.textContent = 'wifi';
       iconEl.style.color = 'var(--primary)';
