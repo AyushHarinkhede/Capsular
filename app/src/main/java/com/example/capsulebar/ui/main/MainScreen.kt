@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -174,6 +175,10 @@ fun MainScreen(
     val hapticsEnabled by viewModel.hapticsEnabled.collectAsStateWithLifecycle()
     val soundEffectsEnabled by viewModel.soundEffectsEnabled.collectAsStateWithLifecycle()
     val activeRegistrationTask by viewModel.activeRegistrationTask.collectAsStateWithLifecycle()
+    val isGlassEffectEnabled by viewModel.isGlassEffectEnabled.collectAsStateWithLifecycle()
+    val glassBlurRadius by viewModel.glassBlurRadius.collectAsStateWithLifecycle()
+    val glassEdgeTransparency by viewModel.glassEdgeTransparency.collectAsStateWithLifecycle()
+    val glassEffectArea by viewModel.glassEffectArea.collectAsStateWithLifecycle()
 
     val isDarkEffective = when (themeMode) {
         "light" -> false
@@ -395,7 +400,15 @@ fun MainScreen(
                 onShowMusicVisualizerToggle = { viewModel.toggleShowMusicVisualizer(it) },
                 onUseAndroidMusicControlsToggle = { viewModel.toggleUseAndroidMusicControls(it) },
                 onIconOptionChanged = { viewModel.updateIconOption(it) },
-                onUploadBluetoothImage = { path -> viewModel.updateBluetoothImage(path) }
+                onUploadBluetoothImage = { path -> viewModel.updateBluetoothImage(path) },
+                isGlassEffectEnabled = isGlassEffectEnabled,
+                glassBlurRadius = glassBlurRadius,
+                glassEdgeTransparency = glassEdgeTransparency,
+                glassEffectArea = glassEffectArea,
+                onToggleGlassEffect = { viewModel.toggleGlassEffect(it) },
+                onGlassBlurRadiusChanged = { viewModel.updateGlassBlurRadius(it) },
+                onGlassEdgeTransparencyChanged = { viewModel.updateGlassEdgeTransparency(it) },
+                onGlassEffectAreaChanged = { viewModel.updateGlassEffectArea(it) }
             )
         }
 
@@ -1812,7 +1825,15 @@ fun AppearanceSection(
     onShowMusicVisualizerToggle: (Boolean) -> Unit,
     onUseAndroidMusicControlsToggle: (Boolean) -> Unit,
     onIconOptionChanged: (Int) -> Unit,
-    onUploadBluetoothImage: (String?) -> Unit
+    onUploadBluetoothImage: (String?) -> Unit,
+    isGlassEffectEnabled: Boolean,
+    glassBlurRadius: Int,
+    glassEdgeTransparency: Int,
+    glassEffectArea: Int,
+    onToggleGlassEffect: (Boolean) -> Unit,
+    onGlassBlurRadiusChanged: (Int) -> Unit,
+    onGlassEdgeTransparencyChanged: (Int) -> Unit,
+    onGlassEffectAreaChanged: (Int) -> Unit
 ) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
@@ -2024,6 +2045,151 @@ fun AppearanceSection(
             }
             ToggleOptionRow("Auto color", "Disabled", autoColor, onAutoColorToggle)
             ToggleOptionRow("App colors", "Select a custom color for each application", useAppColors, onUseAppColorsToggle)
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+
+            // Glass Effect & Notch Blur
+            Text("Glass Effect & Notch Blur", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            ToggleOptionRow("Glass Effect", "Frosted glass edges with solid notch disguise", isGlassEffectEnabled, onToggleGlassEffect)
+
+            AnimatedVisibility(
+                visible = isGlassEffectEnabled,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Live interactive preview of the glass effect
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(68.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f),
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                )
+                            )
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val previewBaseColor = Color(defaultColor)
+                        val previewEdgeAlpha = ((100 - glassEdgeTransparency) / 100f).coerceIn(0.12f, 0.95f)
+                        val previewMidAlpha = (1.0f - (glassEdgeTransparency * 0.45f / 100f)).coerceIn(previewEdgeAlpha, 1.0f)
+                        val previewAreaRatio = (glassEffectArea / 100f).coerceIn(0.15f, 0.90f)
+
+                        Box(
+                            modifier = Modifier
+                                .width(140.dp)
+                                .height(36.dp)
+                                .drawBehind {
+                                    val notchX = size.width * 0.5f
+                                    val notchY = 0f
+                                    val maxDim = kotlin.math.hypot(size.width, size.height)
+                                    val radius = (maxDim * (1.25f - previewAreaRatio * 0.55f)).coerceAtLeast(20f)
+
+                                    val stop1 = (0.28f * (1.1f - previewAreaRatio)).coerceIn(0.06f, 0.42f)
+                                    val stop2 = (stop1 + (1.0f - stop1) * 0.48f).coerceIn(stop1 + 0.1f, 0.85f)
+
+                                    drawRoundRect(
+                                        brush = Brush.radialGradient(
+                                            colorStops = arrayOf(
+                                                0.0f to Color.Black,
+                                                stop1 to if (previewBaseColor == Color.Black) Color.Black else previewBaseColor.copy(alpha = 0.98f),
+                                                stop2 to previewBaseColor.copy(alpha = previewMidAlpha),
+                                                1.0f to previewBaseColor.copy(alpha = previewEdgeAlpha)
+                                            ),
+                                            center = androidx.compose.ui.geometry.Offset(notchX, notchY),
+                                            radius = radius
+                                        ),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx(), 18.dp.toPx())
+                                    )
+                                    drawRoundRect(
+                                        brush = Brush.verticalGradient(
+                                            listOf(
+                                                Color.White.copy(alpha = 0.20f),
+                                                Color.White.copy(alpha = 0.04f),
+                                                Color.Transparent
+                                            )
+                                        ),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx(), 18.dp.toPx())
+                                    )
+                                    drawRoundRect(
+                                        brush = Brush.verticalGradient(
+                                            listOf(
+                                                Color.White.copy(alpha = 0.40f),
+                                                Color.White.copy(alpha = 0.12f),
+                                                Color.Black.copy(alpha = 0.30f)
+                                            )
+                                        ),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx(), 18.dp.toPx()),
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                                    )
+                                }
+                                .clip(RoundedCornerShape(18.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.Black)
+                                        .border(0.5.dp, Color(0x44FFFFFF), CircleShape)
+                                )
+                                Text(
+                                    "Glass Effect",
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+
+                    // Slider 1: Blur
+                    SliderOptionRow(
+                        title = "Blur Intensity (Android 12+)",
+                        valueText = "${glassBlurRadius}dp",
+                        value = glassBlurRadius.toFloat(),
+                        onValueChange = { onGlassBlurRadiusChanged(it.toInt()) },
+                        valueRange = 0f..50f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add,
+                        step = 1f
+                    )
+
+                    // Slider 2: Transparency
+                    SliderOptionRow(
+                        title = "Edge Transparency",
+                        valueText = "${glassEdgeTransparency}%",
+                        value = glassEdgeTransparency.toFloat(),
+                        onValueChange = { onGlassEdgeTransparencyChanged(it.toInt()) },
+                        valueRange = 10f..90f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add,
+                        step = 1f
+                    )
+
+                    // Slider 3: Area / Spread
+                    SliderOptionRow(
+                        title = "Glass Effect Area (Spread)",
+                        valueText = "${glassEffectArea}%",
+                        value = glassEffectArea.toFloat(),
+                        onValueChange = { onGlassEffectAreaChanged(it.toInt()) },
+                        valueRange = 10f..90f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add,
+                        step = 1f
+                    )
+                }
+            }
 
             HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
 

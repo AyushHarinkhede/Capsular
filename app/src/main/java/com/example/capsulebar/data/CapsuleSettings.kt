@@ -251,4 +251,20 @@ class CapsuleSettings(context: Context) {
     var mutedPackages: Set<String>
         get() = prefs.getStringSet("muted_packages", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("muted_packages", value).apply()
+
+    var isGlassEffectEnabled: Boolean
+        get() = prefs.getBoolean("is_glass_effect_enabled", true)
+        set(value) = prefs.edit().putBoolean("is_glass_effect_enabled", value).apply()
+
+    var glassBlurRadius: Int
+        get() = prefs.getInt("glass_blur_radius", 25)
+        set(value) = prefs.edit().putInt("glass_blur_radius", value).apply()
+
+    var glassEdgeTransparency: Int
+        get() = prefs.getInt("glass_edge_transparency", 45)
+        set(value) = prefs.edit().putInt("glass_edge_transparency", value).apply()
+
+    var glassEffectArea: Int
+        get() = prefs.getInt("glass_effect_area", 55)
+        set(value) = prefs.edit().putInt("glass_effect_area", value).apply()
 }

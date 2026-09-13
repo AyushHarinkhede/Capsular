@@ -33,8 +33,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -156,6 +160,10 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     var showAlways by remember { mutableStateOf(settings.showAlways) }
     var quickAccessApps by remember { mutableStateOf(settings.quickAccessApps) }
     var isPositionLocked by remember { mutableStateOf(settings.isPositionLocked) }
+    var isGlassEffectEnabled by remember { mutableStateOf(settings.isGlassEffectEnabled) }
+    var glassBlurRadius by remember { mutableStateOf(settings.glassBlurRadius) }
+    var glassEdgeTransparency by remember { mutableStateOf(settings.glassEdgeTransparency) }
+    var glassEffectArea by remember { mutableStateOf(settings.glassEffectArea) }
 
     DisposableEffect(settings) {
         val prefs = context.getSharedPreferences("capsule_settings", Context.MODE_PRIVATE)
@@ -189,6 +197,10 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 "send_replies" -> sendReplies = settings.sendReplies
                 "show_always" -> showAlways = settings.showAlways
                 "quick_access_apps" -> quickAccessApps = settings.quickAccessApps
+                "is_glass_effect_enabled" -> isGlassEffectEnabled = settings.isGlassEffectEnabled
+                "glass_blur_radius" -> glassBlurRadius = settings.glassBlurRadius
+                "glass_edge_transparency" -> glassEdgeTransparency = settings.glassEdgeTransparency
+                "glass_effect_area" -> glassEffectArea = settings.glassEffectArea
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -486,6 +498,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
 
         // ── SPLIT CIRCLE (DOUBLE CAPSULE IN SAME AREA) ──
         if (splitSize > 0.5f && uiState.splitEvent != null) {
+            val splitBaseColor = getCapsuleColor(uiState.splitEvent, defaultColor, autoColor, useAppColors, context)
             Box(
                 modifier = Modifier
                     .offset(x = splitLeftDp.dp, y = topOffsetDp.dp)
@@ -494,8 +507,40 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                         alpha = capsuleAlpha
                     }
                     .clip(CircleShape)
-                    .background(getCapsuleColor(uiState.splitEvent, defaultColor, autoColor, useAppColors, context))
-                    .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                    .then(
+                        if (isGlassEffectEnabled) {
+                            val edgeAlpha = ((100 - glassEdgeTransparency) / 100f).coerceIn(0.12f, 0.95f)
+                            val midAlpha = (1.0f - (glassEdgeTransparency * 0.45f / 100f)).coerceIn(edgeAlpha, 1.0f)
+                            Modifier.drawBehind {
+                                val radius = size.width * 0.85f
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colorStops = arrayOf(
+                                            0.0f to if (splitBaseColor == Color.Black) Color.Black else splitBaseColor.copy(alpha = 0.95f),
+                                            0.55f to splitBaseColor.copy(alpha = midAlpha),
+                                            1.0f to splitBaseColor.copy(alpha = edgeAlpha)
+                                        ),
+                                        center = Offset(size.width * 0.5f, 0f),
+                                        radius = radius
+                                    )
+                                )
+                                drawCircle(
+                                    brush = Brush.verticalGradient(
+                                        listOf(
+                                            Color.White.copy(alpha = 0.35f),
+                                            Color.White.copy(alpha = 0.08f),
+                                            Color.Black.copy(alpha = 0.25f)
+                                        )
+                                    ),
+                                    style = Stroke(width = 1.dp.toPx())
+                                )
+                            }
+                        } else {
+                            Modifier
+                                .background(splitBaseColor)
+                                .border(1.dp, Color(0x33FFFFFF), CircleShape)
+                        }
+                    )
                     .clickable {
                         com.example.capsulebar.service.HapticSoundManager.playExpand()
                         CapsuleStateManager.swapMainAndSplit(expandAfterSwap = true)
@@ -507,6 +552,16 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         }
 
         // ── MAIN PILL ──
+        val notchRelativeXRatio = if (leftWidth > 0f) {
+            ((cameraCenterXDp - pillLeftDp) / leftWidth).coerceIn(0.05f, 0.95f)
+        } else 0.5f
+
+        val activeBaseColor = if (uiState.displayMode == DisplayMode.EXPANDED) {
+            Color(0xEE111111)
+        } else {
+            getCapsuleColor(uiState.mainEvent, defaultColor, autoColor, useAppColors, context)
+        }
+
         Box(
             modifier = Modifier
                 .offset(x = pillLeftDp.dp, y = topOffsetDp.dp)
@@ -518,25 +573,91 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                     scaleY = scaleAnim.value * lockScale.value
                     translationX = lockShakeX.value
                 }
-                .clip(pillShape)
-                .background(
-                    if (uiState.displayMode == DisplayMode.EXPANDED) {
-                        Color(0xEE0B0B0B)
+                .drawBehind {
+                    val radiusPx = leftRadius.dp.toPx()
+                    if (isGlassEffectEnabled) {
+                        val edgeAlpha = ((100 - glassEdgeTransparency) / 100f).coerceIn(0.12f, 0.95f)
+                        val midAlpha = (1.0f - (glassEdgeTransparency * 0.45f / 100f)).coerceIn(edgeAlpha, 1.0f)
+                        val areaRatio = (glassEffectArea / 100f).coerceIn(0.15f, 0.90f)
+
+                        val notchX = size.width * notchRelativeXRatio
+                        val notchY = 0f
+                        val maxDim = kotlin.math.hypot(size.width, size.height)
+                        val gradRadius = (maxDim * (1.25f - areaRatio * 0.55f)).coerceAtLeast(30f)
+
+                        val stop1 = (0.28f * (1.1f - areaRatio)).coerceIn(0.06f, 0.42f)
+                        val stop2 = (stop1 + (1.0f - stop1) * 0.48f).coerceIn(stop1 + 0.1f, 0.85f)
+
+                        // 1. Radial glass gradient: pure Black directly at camera cutout -> solid transition -> translucent glass mid -> outer edge transparency
+                        drawRoundRect(
+                            brush = Brush.radialGradient(
+                                colorStops = arrayOf(
+                                    0.0f to Color.Black,
+                                    stop1 to if (activeBaseColor == Color.Black) Color.Black else activeBaseColor.copy(alpha = 0.98f),
+                                    stop2 to activeBaseColor.copy(alpha = midAlpha),
+                                    1.0f to activeBaseColor.copy(alpha = edgeAlpha)
+                                ),
+                                center = Offset(notchX, notchY),
+                                radius = gradRadius
+                            ),
+                            cornerRadius = CornerRadius(radiusPx, radiusPx)
+                        )
+
+                        // 2. Specular frosted glass highlight (subtle light reflection along top)
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.20f),
+                                    Color.White.copy(alpha = 0.04f),
+                                    Color.Transparent
+                                )
+                            ),
+                            cornerRadius = CornerRadius(radiusPx, radiusPx)
+                        )
+
+                        // 3. Specular edge glass rim (dual-tone border)
+                        drawRoundRect(
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.40f),
+                                    Color.White.copy(alpha = 0.12f),
+                                    Color.Black.copy(alpha = 0.30f)
+                                )
+                            ),
+                            cornerRadius = CornerRadius(radiusPx, radiusPx),
+                            style = Stroke(width = 1.dp.toPx())
+                        )
                     } else {
-                        getCapsuleColor(uiState.mainEvent, defaultColor, autoColor, useAppColors, context)
+                        // Standard solid background
+                        drawRoundRect(
+                            color = activeBaseColor,
+                            cornerRadius = CornerRadius(radiusPx, radiusPx)
+                        )
+                        if (uiState.displayMode == DisplayMode.EXPANDED) {
+                            drawRoundRect(
+                                color = Color(0x22FFFFFF),
+                                cornerRadius = CornerRadius(radiusPx, radiusPx),
+                                style = Stroke(width = 1.dp.toPx())
+                            )
+                        }
                     }
-                )
-                .then(
-                    if (uiState.displayMode == DisplayMode.EXPANDED) {
-                        Modifier.border(1.dp, Color(0x22FFFFFF), pillShape)
-                    } else if (isUnlockEvent) {
-                        Modifier.border(1.2.dp, Color(0x6681C784), pillShape)
+
+                    // Special event border overlays
+                    if (isUnlockEvent) {
+                        drawRoundRect(
+                            color = Color(0x6681C784),
+                            cornerRadius = CornerRadius(radiusPx, radiusPx),
+                            style = Stroke(width = 1.2.dp.toPx())
+                        )
                     } else if (mainLockEvent != null && mainLockEvent.isLocked) {
-                        Modifier.border(0.8.dp, Color(0x2AFFFFFF), pillShape)
-                    } else {
-                        Modifier
+                        drawRoundRect(
+                            color = Color(0x2AFFFFFF),
+                            cornerRadius = CornerRadius(radiusPx, radiusPx),
+                            style = Stroke(width = 0.8.dp.toPx())
+                        )
                     }
-                )
+                }
+                .clip(pillShape)
                 // ── ROCK-SOLID TAP TO EXPAND & DRAG-UP TO COLLAPSE ──
                 .clickable(
                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },

@@ -294,7 +294,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     }
 
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" || key == "is_calibration_mode" || key == "is_position_locked" || key == "camera_position" || key == "camera_width_dp" || key == "show_as_notch" || key == "split_position" || key == "edge_rounding_percent" || key == "max_popup_width_percent") {
+        if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" || key == "is_calibration_mode" || key == "is_position_locked" || key == "camera_position" || key == "camera_width_dp" || key == "show_as_notch" || key == "split_position" || key == "edge_rounding_percent" || key == "max_popup_width_percent" || key == "is_glass_effect_enabled" || key == "glass_blur_radius" || key == "glass_edge_transparency" || key == "glass_effect_area") {
             updateLayoutParams()
         }
     }
@@ -573,6 +573,17 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             } else {
                 baseFlags
             }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (settings.isGlassEffectEnabled && settings.glassBlurRadius > 0) {
+                    params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+                    params.blurBehindRadius = (settings.glassBlurRadius * density).toInt()
+                } else {
+                    params.flags = params.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND.inv()
+                    params.blurBehindRadius = 0
+                }
+            }
+
             params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

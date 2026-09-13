@@ -207,6 +207,18 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _isPositionLocked = MutableStateFlow(settings.isPositionLocked)
     val isPositionLocked: StateFlow<Boolean> = _isPositionLocked.asStateFlow()
 
+    private val _isGlassEffectEnabled = MutableStateFlow(settings.isGlassEffectEnabled)
+    val isGlassEffectEnabled: StateFlow<Boolean> = _isGlassEffectEnabled.asStateFlow()
+
+    private val _glassBlurRadius = MutableStateFlow(settings.glassBlurRadius)
+    val glassBlurRadius: StateFlow<Int> = _glassBlurRadius.asStateFlow()
+
+    private val _glassEdgeTransparency = MutableStateFlow(settings.glassEdgeTransparency)
+    val glassEdgeTransparency: StateFlow<Int> = _glassEdgeTransparency.asStateFlow()
+
+    private val _glassEffectArea = MutableStateFlow(settings.glassEffectArea)
+    val glassEffectArea: StateFlow<Int> = _glassEffectArea.asStateFlow()
+
     private val _activeRegistrationTask = MutableStateFlow<String?>(null)
     val activeRegistrationTask: StateFlow<String?> = _activeRegistrationTask.asStateFlow()
 
@@ -286,6 +298,10 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             "split_position" -> _splitPosition.value = settings.splitPosition
             "nfc_wrist_watch_tag_id" -> _nfcWristWatchTagId.value = settings.nfcWristWatchTagId
             "nfc_chetak_tag_id" -> _nfcChetakTagId.value = settings.nfcChetakTagId
+            "is_glass_effect_enabled" -> _isGlassEffectEnabled.value = settings.isGlassEffectEnabled
+            "glass_blur_radius" -> _glassBlurRadius.value = settings.glassBlurRadius
+            "glass_edge_transparency" -> _glassEdgeTransparency.value = settings.glassEdgeTransparency
+            "glass_effect_area" -> _glassEffectArea.value = settings.glassEffectArea
         }
     }
 
@@ -934,6 +950,26 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             settings.isCalibrationMode = false
             _isCalibrationMode.value = false
         }
+    }
+
+    fun toggleGlassEffect(value: Boolean) {
+        settings.isGlassEffectEnabled = value
+        _isGlassEffectEnabled.value = value
+    }
+
+    fun updateGlassBlurRadius(value: Int) {
+        settings.glassBlurRadius = value
+        _glassBlurRadius.value = value
+    }
+
+    fun updateGlassEdgeTransparency(value: Int) {
+        settings.glassEdgeTransparency = value
+        _glassEdgeTransparency.value = value
+    }
+
+    fun updateGlassEffectArea(value: Int) {
+        settings.glassEffectArea = value
+        _glassEffectArea.value = value
     }
 }
 
