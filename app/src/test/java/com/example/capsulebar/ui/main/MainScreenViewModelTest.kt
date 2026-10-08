@@ -52,4 +52,19 @@ class MainScreenViewModelTest {
         assertEquals(45, viewModel.heightDp.value)
         assertEquals(20, viewModel.cornerRadiusDp.value)
     }
+
+    @Test
+    fun togglePositionLocked_locksPositionAndExitsCalibration() = runTest {
+        assertEquals(false, viewModel.isPositionLocked.value)
+        viewModel.toggleCalibrationMode(true)
+        assertEquals(true, viewModel.isCalibrationMode.value)
+
+        viewModel.togglePositionLocked(true)
+
+        assertEquals(true, viewModel.isPositionLocked.value)
+        assertEquals(false, viewModel.isCalibrationMode.value)
+
+        viewModel.togglePositionLocked(false)
+        assertEquals(false, viewModel.isPositionLocked.value)
+    }
 }

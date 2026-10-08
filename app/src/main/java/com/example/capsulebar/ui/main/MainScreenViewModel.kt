@@ -204,6 +204,9 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _soundEffectsEnabled = MutableStateFlow(settings.soundEffectsEnabled)
     val soundEffectsEnabled: StateFlow<Boolean> = _soundEffectsEnabled.asStateFlow()
 
+    private val _isPositionLocked = MutableStateFlow(settings.isPositionLocked)
+    val isPositionLocked: StateFlow<Boolean> = _isPositionLocked.asStateFlow()
+
     private val _activeRegistrationTask = MutableStateFlow<String?>(null)
     val activeRegistrationTask: StateFlow<String?> = _activeRegistrationTask.asStateFlow()
 
@@ -245,6 +248,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             "height_dp" -> _heightDp.value = settings.heightDp
             "corner_radius_dp" -> _cornerRadiusDp.value = settings.cornerRadiusDp
             "is_calibration_mode" -> _isCalibrationMode.value = settings.isCalibrationMode
+            "is_position_locked" -> _isPositionLocked.value = settings.isPositionLocked
             "bluetooth_image_path" -> _bluetoothImagePath.value = settings.bluetoothImagePath
             "camera_position" -> _cameraPosition.value = settings.cameraPosition
             "camera_width_dp" -> _cameraWidthDp.value = settings.cameraWidthDp
@@ -906,6 +910,15 @@ class MainScreenViewModel(context: Context) : ViewModel() {
         settings.soundEffectsEnabled = value
         _soundEffectsEnabled.value = value
         CapsuleStateManager.setSoundEffectsEnabled(value)
+    }
+
+    fun togglePositionLocked(value: Boolean) {
+        settings.isPositionLocked = value
+        _isPositionLocked.value = value
+        if (value) {
+            settings.isCalibrationMode = false
+            _isCalibrationMode.value = false
+        }
     }
 }
 

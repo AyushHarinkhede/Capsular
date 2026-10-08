@@ -243,4 +243,8 @@ class CapsuleSettings(context: Context) {
     var soundEffectsEnabled: Boolean
         get() = prefs.getBoolean("sound_effects_enabled", true)
         set(value) = prefs.edit().putBoolean("sound_effects_enabled", value).apply()
+
+    var isPositionLocked: Boolean
+        get() = prefs.getBoolean("is_position_locked", false)
+        set(value) = prefs.edit().putBoolean("is_position_locked", value).apply()
 }

@@ -130,6 +130,7 @@ fun MainScreen(
     val networkEnabled by viewModel.isNetworkEnabled.collectAsStateWithLifecycle()
     val notificationsEnabled by viewModel.isNotificationsEnabled.collectAsStateWithLifecycle()
     val isCalibrationMode by viewModel.isCalibrationMode.collectAsStateWithLifecycle()
+    val isPositionLocked by viewModel.isPositionLocked.collectAsStateWithLifecycle()
     val bluetoothImagePath by viewModel.bluetoothImagePath.collectAsStateWithLifecycle()
 
     val compactDurationSec by viewModel.compactDurationSec.collectAsStateWithLifecycle()
@@ -305,7 +306,7 @@ fun MainScreen(
             )
         }
 
-        // ── POSITION & SIZE ──────────────────────────────────────────────────────
+        // ── POSITION & SIZE (REMOTE CONTROL HUB) ──────────────────────────────────
         Box(
             modifier = Modifier
                 .widthIn(max = 440.dp)
@@ -322,8 +323,11 @@ fun MainScreen(
                 cameraPosition = cameraPosition,
                 cameraWidthDp = cameraWidthDp,
                 isCalibrationMode = isCalibrationMode,
+                isPositionLocked = isPositionLocked,
                 isServiceRunning = isServiceRunning,
                 splitPosition = splitPosition,
+                showAsNotch = showAsNotch,
+                showAlways = showAlways,
                 onXChanged = { viewModel.updateXOffset(it) },
                 onYChanged = { viewModel.updateYOffset(it) },
                 onWidthChanged = { viewModel.updateWidthDp(it) },
@@ -333,12 +337,16 @@ fun MainScreen(
                 onCameraPositionChanged = { viewModel.updateCameraPosition(it) },
                 onCameraWidthChanged = { viewModel.updateCameraWidthDp(it) },
                 onToggleCalibration = { viewModel.toggleCalibrationMode(it) },
+                onTogglePositionLocked = { viewModel.togglePositionLocked(it) },
                 onSplitPositionChanged = { viewModel.updateSplitPosition(it) },
+                onShowAsNotchToggle = { viewModel.toggleShowAsNotch(it) },
+                onShowAlwaysToggle = { viewModel.toggleShowAlways(it) },
                 onReset = {
                     viewModel.updateXOffset(0)
                     viewModel.updateYOffset(15)
                     viewModel.updateWidthDp(110)
                     viewModel.updateHeightDp(36)
+                    viewModel.updateCameraWidthDp(28)
                     viewModel.updateEdgeRoundingPercent(60)
                     viewModel.updateMaxPopupWidthPercent(100)
                 }
@@ -887,8 +895,11 @@ fun PositionSection(
     cameraPosition: String,
     cameraWidthDp: Int,
     isCalibrationMode: Boolean,
+    isPositionLocked: Boolean,
     isServiceRunning: Boolean,
     splitPosition: String,
+    showAsNotch: Boolean,
+    showAlways: Boolean,
     onXChanged: (Int) -> Unit,
     onYChanged: (Int) -> Unit,
     onWidthChanged: (Int) -> Unit,
@@ -898,130 +909,97 @@ fun PositionSection(
     onCameraPositionChanged: (String) -> Unit,
     onCameraWidthChanged: (Int) -> Unit,
     onToggleCalibration: (Boolean) -> Unit,
+    onTogglePositionLocked: (Boolean) -> Unit,
     onSplitPositionChanged: (String) -> Unit,
+    onShowAsNotchToggle: (Boolean) -> Unit,
+    onShowAlwaysToggle: (Boolean) -> Unit,
     onReset: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
+    var stepSize by remember { mutableIntStateOf(5) }
+    var showFineSliders by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = MaterialTheme.shapes.extraLarge,             // M3 ExtraLarge = 28dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(),
+        shape = MaterialTheme.shapes.extraLarge,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // ── HEADER & LIVE OUTLINE TOGGLE ──────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "Capsule Position Remote",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isPositionLocked) Color(0xFF00E676).copy(alpha = 0.18f)
+                                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        ) {
+                            Text(
+                                text = if (isPositionLocked) "FIXED" else "EDITING",
+                                color = if (isPositionLocked) Color(0xFF00C853) else MaterialTheme.colorScheme.primary,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                     Text(
-                        "Position",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp
-                    )
-                    Text(
-                        "Change size and position",
+                        if (isPositionLocked)
+                            "Capsule position locked — all elements stay anchored to this area"
+                        else
+                            "Use the remote D-pad to align, then tap FIX to lock in place",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
+                        fontSize = 11.sp
                     )
                 }
-                
+
                 if (isServiceRunning) {
-                    TextButton(
+                    FilledTonalButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             onToggleCalibration(!isCalibrationMode)
                         },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = if (isCalibrationMode) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                        )
+                        shape = CircleShape,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = if (isCalibrationMode) MaterialTheme.colorScheme.errorContainer
+                                             else MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = if (isCalibrationMode) MaterialTheme.colorScheme.onErrorContainer
+                                           else MaterialTheme.colorScheme.onPrimaryContainer
+                        ),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier.height(34.dp)
                     ) {
                         Icon(
-                            imageVector = if (isCalibrationMode) Icons.Rounded.Close else Icons.Rounded.CenterFocusStrong,
+                            imageVector = if (isCalibrationMode) Icons.Rounded.VisibilityOff else Icons.Rounded.CenterFocusStrong,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            text = if (isCalibrationMode) "Hide Outline" else "Show Outline",
-                            fontSize = 12.sp,
+                            text = if (isCalibrationMode) "Hide Guide" else "Live Guide",
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
-                }
-            }
-
-            // Quick Calibration Action Buttons: Auto-Detect Cutout & Test Bouncy Island
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        val activity = context as? android.app.Activity
-                        if (activity != null) {
-                            val result = com.example.capsulebar.util.DisplayCutoutHelper.detectCutout(activity)
-                            if (result != null) {
-                                onCameraPositionChanged(result.position)
-                                onXChanged(result.xOffsetPx)
-                                onYChanged(result.yOffsetPx)
-                                onCameraWidthChanged(result.cameraWidthDp)
-                                com.example.capsulebar.service.HapticManager.vibrateDouble()
-                                com.example.capsulebar.service.HapticSoundManager.playExpand()
-                            } else {
-                                com.example.capsulebar.service.HapticSoundManager.playTick()
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                ) {
-                    Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Auto-Detect", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Button(
-                    onClick = {
-                        com.example.capsulebar.service.HapticSoundManager.playCapsuleAppear()
-                        CapsuleStateManager.postEvent(
-                            CapsuleEvent.Notification(
-                                id = "test_bounce_${System.currentTimeMillis()}",
-                                packageName = "com.example.capsulebar",
-                                appName = "Capsule Bar",
-                                title = "Dynamic Island",
-                                text = "Bouncy Emerge & Retract Test",
-                                priority = 990,
-                                durationMs = 3800
-                            )
-                        )
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                    ),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
-                ) {
-                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(15.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Test Bounce", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1029,126 +1007,510 @@ fun PositionSection(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f))
-                        .padding(8.dp),
+                        .padding(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Warning,
                         contentDescription = "Warning",
                         tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Start overlay service to enable Show Outline alignment directly on screen.",
+                        text = "Turn on Capsule Bar service above to see the live capsule outline move while using the remote.",
                         color = MaterialTheme.colorScheme.onErrorContainer,
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
 
-            // Camera Cutout Position
-            Column {
-                Text("Camera Cutout Position", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // ── REMOTE CONTROL CONSOLE ────────────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                ),
+                border = BorderStroke(
+                    width = 1.5.dp,
+                    color = if (isPositionLocked)
+                        Color(0xFF00E676).copy(alpha = 0.55f)
+                    else
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    val positions = listOf("Left", "Center", "Right")
-                    positions.forEach { pos ->
-                        val isSelected = cameraPosition == pos
-                        val bg = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-                        val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                    // 1. DIGITAL TELEMETRY SCREEN (Shows Live Coordinates & Unified Anchor Status)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "X: ${if (xOffset >= 0) "+$xOffset" else "$xOffset"}px   •   Y: ${yOffset}px",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            Text(
+                                text = "Size: ${widthDp}×${heightDp}dp  •  Hole: ${cameraWidthDp}dp ($cameraPosition)  •  Split: $splitPosition",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        Icon(
+                            imageVector = if (isPositionLocked) Icons.Rounded.Lock else Icons.Rounded.OpenWith,
+                            contentDescription = null,
+                            tint = if (isPositionLocked) Color(0xFF00C853) else MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    // 2. STEP SPEED SELECTOR (1px Fine / 5px Normal / 15px Fast)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Remote Step Speed",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(1 to "1px Fine", 5 to "5px Step", 15 to "15px Fast").forEach { (step, label) ->
+                                val selected = stepSize == step
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (selected) MaterialTheme.colorScheme.primary
+                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                                        )
+                                        .clickable {
+                                            stepSize = step
+                                            com.example.capsulebar.service.HapticSoundManager.playTick()
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (selected) MaterialTheme.colorScheme.onPrimary
+                                                else MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. MAIN REMOTE BODY: [WIDTH ROCKER]  +  [CIRCULAR D-PAD & LOCK]  +  [HEIGHT ROCKER]
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Left Rocker: Capsule Width
+                        RemoteRockerColumn(
+                            label = "WIDTH",
+                            valueText = "${widthDp}dp",
+                            enabled = !isPositionLocked,
+                            onIncrease = {
+                                val delta = if (stepSize == 1) 1 else 4
+                                onWidthChanged((widthDp + delta).coerceIn(70, 250))
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            },
+                            onDecrease = {
+                                val delta = if (stepSize == 1) 1 else 4
+                                onWidthChanged((widthDp - delta).coerceIn(70, 250))
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            }
+                        )
+
+                        // Center Circular D-Pad with Center FIX / LOCK Button
                         Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(38.dp)
-                                // M3 Full/Pill shape for segmented control buttons
-                                .clip(MaterialTheme.shapes.extraLarge)
-                                .background(bg)
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onCameraPositionChanged(pos)
-                                },
+                                .size(168.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.surfaceVariant,
+                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                                        )
+                                    )
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = if (isPositionLocked)
+                                        Color(0xFF00E676).copy(alpha = 0.5f)
+                                    else
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
+                                    shape = CircleShape
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
+                            // UP Button (Y - step)
+                            RemoteDpadButton(
+                                icon = Icons.Rounded.KeyboardArrowUp,
+                                contentDescription = "Move Up",
+                                enabled = !isPositionLocked,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 6.dp),
+                                onClick = {
+                                    onYChanged((yOffset - stepSize).coerceIn(0, 200))
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                }
+                            )
+
+                            // DOWN Button (Y + step)
+                            RemoteDpadButton(
+                                icon = Icons.Rounded.KeyboardArrowDown,
+                                contentDescription = "Move Down",
+                                enabled = !isPositionLocked,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 6.dp),
+                                onClick = {
+                                    onYChanged((yOffset + stepSize).coerceIn(0, 200))
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                }
+                            )
+
+                            // LEFT Button (X - step)
+                            RemoteDpadButton(
+                                icon = Icons.Rounded.KeyboardArrowLeft,
+                                contentDescription = "Move Left",
+                                enabled = !isPositionLocked,
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .padding(start = 6.dp),
+                                onClick = {
+                                    onXChanged((xOffset - stepSize).coerceIn(-300, 300))
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                }
+                            )
+
+                            // RIGHT Button (X + step)
+                            RemoteDpadButton(
+                                icon = Icons.Rounded.KeyboardArrowRight,
+                                contentDescription = "Move Right",
+                                enabled = !isPositionLocked,
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 6.dp),
+                                onClick = {
+                                    onXChanged((xOffset + stepSize).coerceIn(-300, 300))
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                }
+                            )
+
+                            // CENTER OK / FIX POSITION BUTTON
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isPositionLocked) Color(0xFF00C853) else MaterialTheme.colorScheme.primary,
+                                shadowElevation = 4.dp,
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .clickable {
+                                        val nextLocked = !isPositionLocked
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        com.example.capsulebar.service.HapticSoundManager.playToggle(nextLocked)
+                                        onTogglePositionLocked(nextLocked)
+                                    }
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Icon(
+                                        imageVector = if (isPositionLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                                        contentDescription = if (isPositionLocked) "Unlock Position" else "Fix Position",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Text(
+                                        text = if (isPositionLocked) "LOCKED" else "FIX POS",
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
+                            }
+                        }
+
+                        // Right Rocker: Capsule Height
+                        RemoteRockerColumn(
+                            label = "HEIGHT",
+                            valueText = "${heightDp}dp",
+                            enabled = !isPositionLocked,
+                            onIncrease = {
+                                val delta = if (stepSize == 1) 1 else 2
+                                onHeightChanged((heightDp + delta).coerceIn(25, 60))
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            },
+                            onDecrease = {
+                                val delta = if (stepSize == 1) 1 else 2
+                                onHeightChanged((heightDp - delta).coerceIn(25, 60))
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            }
+                        )
+                    }
+
+                    // 4. CAMERA CUTOUT HOLE WIDTH ROCKER (In the same remote console)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
                             Text(
-                                text = pos,
-                                color = textColor,
-                                fontSize = 12.sp,
+                                text = "Camera Hole Cutout Width",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
+                            Text(
+                                text = "Keeps left & right capsule icons clear of the lens",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 10.sp
+                            )
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = {
+                                    onCameraWidthChanged((cameraWidthDp - 2).coerceIn(15, 80))
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                },
+                                enabled = !isPositionLocked,
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(Icons.Rounded.Remove, contentDescription = "Decrease Cutout", modifier = Modifier.size(16.dp))
+                            }
+                            Text(
+                                text = "${cameraWidthDp}dp",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Black
+                            )
+                            FilledTonalIconButton(
+                                onClick = {
+                                    onCameraWidthChanged((cameraWidthDp + 2).coerceIn(15, 80))
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                },
+                                enabled = !isPositionLocked,
+                                modifier = Modifier.size(30.dp)
+                            ) {
+                                Icon(Icons.Rounded.Add, contentDescription = "Increase Cutout", modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+
+                    // 5. REMOTE QUICK ACTION BAR: Auto-Detect | Center X | Test Bounce | Reset
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        FilledTonalButton(
+                            onClick = {
+                                val activity = context as? android.app.Activity
+                                if (activity != null) {
+                                    val result = com.example.capsulebar.util.DisplayCutoutHelper.detectCutout(activity)
+                                    if (result != null) {
+                                        onCameraPositionChanged(result.position)
+                                        onXChanged(result.xOffsetPx)
+                                        onYChanged(result.yOffsetPx)
+                                        onCameraWidthChanged(result.cameraWidthDp)
+                                        com.example.capsulebar.service.HapticManager.vibrateDouble()
+                                        com.example.capsulebar.service.HapticSoundManager.playExpand()
+                                    } else {
+                                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                                    }
+                                }
+                            },
+                            enabled = !isPositionLocked,
+                            modifier = Modifier
+                                .weight(1.15f)
+                                .height(36.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(Icons.Rounded.MyLocation, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Auto-Detect", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        FilledTonalButton(
+                            onClick = {
+                                onXChanged(0)
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            },
+                            enabled = !isPositionLocked,
+                            modifier = Modifier
+                                .weight(0.95f)
+                                .height(36.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(Icons.Rounded.AlignHorizontalCenter, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Center X", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        FilledTonalButton(
+                            onClick = {
+                                com.example.capsulebar.service.HapticSoundManager.playCapsuleAppear()
+                                CapsuleStateManager.postEvent(
+                                    CapsuleEvent.Notification(
+                                        id = "test_bounce_${System.currentTimeMillis()}",
+                                        packageName = "com.example.capsulebar",
+                                        appName = "Capsule Bar",
+                                        title = "Position Verified",
+                                        text = "All capsule elements anchored here",
+                                        priority = 990,
+                                        durationMs = 3800
+                                    )
+                                )
+                            },
+                            modifier = Modifier
+                                .weight(0.95f)
+                                .height(36.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            ),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(2.dp))
+                            Text("Test", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        FilledTonalIconButton(
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onReset()
+                            },
+                            enabled = !isPositionLocked,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.Rounded.Refresh, contentDescription = "Reset Position", modifier = Modifier.size(16.dp))
                         }
                     }
                 }
             }
 
-            // Camera Cutout Width
-            SliderOptionRow(
-                title = "Camera Cutout Width",
-                valueText = "${cameraWidthDp}dp",
-                value = cameraWidthDp.toFloat(),
-                onValueChange = { onCameraWidthChanged(it.toInt()) },
-                valueRange = 15f..80f,
-                decreaseIcon = Icons.Rounded.Remove,
-                increaseIcon = Icons.Rounded.Add
-            )
-
-            // Split Capsule Position
-            Column {
-                Text(
-                    "Side Capsule Position",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-                Text(
-                    "Which side the split circle appears on",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    fontSize = 11.sp
-                )
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val splitOptions = listOf("Left", "Right")
-                    splitOptions.forEach { side ->
-                        val isSelected = splitPosition == side
-                        val bg = if (isSelected) MaterialTheme.colorScheme.secondary
-                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
-                        val textColor = if (isSelected) MaterialTheme.colorScheme.onSecondary
-                                        else MaterialTheme.colorScheme.onSurface
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(42.dp)
-                                .clip(MaterialTheme.shapes.extraLarge)    // M3 Full/Pill
-                                .background(bg)
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onSplitPositionChanged(side)
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            // ── UNIFIED CAPSULE AREA CONFIGURATION (Camera + Split Side + Notch Mode) ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Camera Cutout Anchor
+                Column(modifier = Modifier.weight(1.2f)) {
+                    Text(
+                        "Camera Anchor",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("Left", "Center", "Right").forEach { pos ->
+                            val isSelected = cameraPosition == pos
+                            val bg = if (isSelected) MaterialTheme.colorScheme.primary
+                                     else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                            val textColor = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                            else MaterialTheme.colorScheme.onSurface
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp)
+                                    .clip(MaterialTheme.shapes.extraLarge)
+                                    .background(bg)
+                                    .clickable(enabled = !isPositionLocked) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onCameraPositionChanged(pos)
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    imageVector = if (side == "Left") Icons.Rounded.KeyboardArrowLeft
-                                                  else Icons.Rounded.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = textColor,
-                                    modifier = Modifier.size(16.dp)
-                                )
                                 Text(
-                                    text = "$side Side",
-                                    color = textColor,
-                                    fontSize = 12.sp,
+                                    text = pos,
+                                    color = textColor.copy(alpha = if (isPositionLocked && !isSelected) 0.45f else 1f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Side Split Capsule Anchor
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Split Bubble Side",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        listOf("Left", "Right").forEach { side ->
+                            val isSelected = splitPosition == side
+                            val bg = if (isSelected) MaterialTheme.colorScheme.secondary
+                                     else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                            val textColor = if (isSelected) MaterialTheme.colorScheme.onSecondary
+                                            else MaterialTheme.colorScheme.onSurface
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(36.dp)
+                                    .clip(MaterialTheme.shapes.extraLarge)
+                                    .background(bg)
+                                    .clickable(enabled = !isPositionLocked) {
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        onSplitPositionChanged(side)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = side,
+                                    color = textColor.copy(alpha = if (isPositionLocked && !isSelected) 0.45f else 1f),
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -1157,158 +1519,248 @@ fun PositionSection(
                 }
             }
 
-            // 4-Way Precision D-Pad Micro Nudge Panel (1px fine stepping)
-            Card(
+            // Quick Capsule Area Behavior Toggles (Notch flush top & Always visible in fixed area)
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "Fine Micro Nudge (X: ${xOffset}px | Y: ${yOffset}px)",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        FilledTonalIconButton(
-                            onClick = {
-                                onXChanged((xOffset - 1).coerceIn(-300, 300))
-                                com.example.capsulebar.service.HapticSoundManager.playTick()
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(Icons.Rounded.KeyboardArrowLeft, contentDescription = "Left 1px", modifier = Modifier.size(18.dp))
+                FilterChip(
+                    selected = showAsNotch,
+                    onClick = {
+                        if (!isPositionLocked) {
+                            com.example.capsulebar.service.HapticSoundManager.playToggle(!showAsNotch)
+                            onShowAsNotchToggle(!showAsNotch)
                         }
-                        FilledTonalIconButton(
-                            onClick = {
-                                onYChanged((yOffset - 1).coerceIn(0, 200))
-                                com.example.capsulebar.service.HapticSoundManager.playTick()
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Up 1px", modifier = Modifier.size(18.dp))
-                        }
-                        FilledTonalIconButton(
-                            onClick = {
-                                onYChanged((yOffset + 1).coerceIn(0, 200))
-                                com.example.capsulebar.service.HapticSoundManager.playTick()
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Down 1px", modifier = Modifier.size(18.dp))
-                        }
-                        FilledTonalIconButton(
-                            onClick = {
-                                onXChanged((xOffset + 1).coerceIn(-300, 300))
-                                com.example.capsulebar.service.HapticSoundManager.playTick()
-                            },
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = "Right 1px", modifier = Modifier.size(18.dp))
-                        }
+                    },
+                    enabled = !isPositionLocked,
+                    label = { Text("Flush Top Notch", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.VerticalAlignTop,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+
+                FilterChip(
+                    selected = showAlways,
+                    onClick = {
+                        com.example.capsulebar.service.HapticSoundManager.playToggle(!showAlways)
+                        onShowAlwaysToggle(!showAlways)
+                    },
+                    label = { Text("Always Show Pill", fontSize = 11.sp, fontWeight = FontWeight.SemiBold) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Visibility,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // ── COLLAPSIBLE FINE SLIDERS & POPUP GEOMETRY (In the same unified section) ──
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable {
+                        showFineSliders = !showFineSliders
+                        com.example.capsulebar.service.HapticSoundManager.playTick()
                     }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Tune,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Fine Sliders & Shape Geometry",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Icon(
+                        imageVector = if (showFineSliders) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
-            // Position horizontal
-            SliderOptionRow(
-                title = "Position horizontal",
-                valueText = "${xOffset}px",
-                value = xOffset.toFloat(),
-                onValueChange = { onXChanged(it.toInt()) },
-                valueRange = -300f..300f,
-                decreaseIcon = Icons.Rounded.ChevronLeft,
-                increaseIcon = Icons.Rounded.ChevronRight
-            )
-
-            // Position vertical
-            SliderOptionRow(
-                title = "Position vertical",
-                valueText = "${yOffset}px",
-                value = yOffset.toFloat(),
-                onValueChange = { onYChanged(it.toInt()) },
-                valueRange = 0f..200f,
-                decreaseIcon = Icons.Rounded.KeyboardArrowUp,
-                increaseIcon = Icons.Rounded.KeyboardArrowDown
-            )
-
-            // Size horizontal
-            SliderOptionRow(
-                title = "Size horizontal",
-                valueText = "${widthDp}dp",
-                value = widthDp.toFloat(),
-                onValueChange = { onWidthChanged(it.toInt()) },
-                valueRange = 70f..250f,
-                decreaseIcon = Icons.Rounded.Remove,
-                increaseIcon = Icons.Rounded.Add
-            )
-
-            // Size vertical
-            SliderOptionRow(
-                title = "Size vertical",
-                valueText = "${heightDp}dp",
-                value = heightDp.toFloat(),
-                onValueChange = { onHeightChanged(it.toInt()) },
-                valueRange = 25f..60f,
-                decreaseIcon = Icons.Rounded.KeyboardArrowUp,
-                increaseIcon = Icons.Rounded.KeyboardArrowDown
-            )
-
-            // Reset
-            TextButton(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onReset()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+            AnimatedVisibility(
+                visible = showFineSliders,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
             ) {
-                Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Reset", fontWeight = FontWeight.Bold)
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    SliderOptionRow(
+                        title = "Position horizontal (X)",
+                        valueText = "${xOffset}px",
+                        value = xOffset.toFloat(),
+                        onValueChange = { if (!isPositionLocked) onXChanged(it.toInt()) },
+                        valueRange = -300f..300f,
+                        decreaseIcon = Icons.Rounded.ChevronLeft,
+                        increaseIcon = Icons.Rounded.ChevronRight
+                    )
+
+                    SliderOptionRow(
+                        title = "Position vertical (Y)",
+                        valueText = "${yOffset}px",
+                        value = yOffset.toFloat(),
+                        onValueChange = { if (!isPositionLocked) onYChanged(it.toInt()) },
+                        valueRange = 0f..200f,
+                        decreaseIcon = Icons.Rounded.KeyboardArrowUp,
+                        increaseIcon = Icons.Rounded.KeyboardArrowDown
+                    )
+
+                    SliderOptionRow(
+                        title = "Capsule Width",
+                        valueText = "${widthDp}dp",
+                        value = widthDp.toFloat(),
+                        onValueChange = { if (!isPositionLocked) onWidthChanged(it.toInt()) },
+                        valueRange = 70f..250f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add
+                    )
+
+                    SliderOptionRow(
+                        title = "Capsule Height",
+                        valueText = "${heightDp}dp",
+                        value = heightDp.toFloat(),
+                        onValueChange = { if (!isPositionLocked) onHeightChanged(it.toInt()) },
+                        valueRange = 25f..60f,
+                        decreaseIcon = Icons.Rounded.KeyboardArrowUp,
+                        increaseIcon = Icons.Rounded.KeyboardArrowDown
+                    )
+
+                    SliderOptionRow(
+                        title = "Camera Cutout Width",
+                        valueText = "${cameraWidthDp}dp",
+                        value = cameraWidthDp.toFloat(),
+                        onValueChange = { if (!isPositionLocked) onCameraWidthChanged(it.toInt()) },
+                        valueRange = 15f..80f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+
+                    SliderOptionRow(
+                        title = "Capsule Edge Rounding",
+                        valueText = "${edgeRoundingPercent}%",
+                        value = edgeRoundingPercent.toFloat(),
+                        onValueChange = { if (!isPositionLocked) onEdgeRoundingChanged(it.toInt()) },
+                        valueRange = 0f..100f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add
+                    )
+
+                    SliderOptionRow(
+                        title = "Expanded Card Width",
+                        valueText = "${maxPopupWidthPercent}%",
+                        value = maxPopupWidthPercent.toFloat(),
+                        onValueChange = { if (!isPositionLocked) onMaxPopupWidthChanged(it.toInt()) },
+                        valueRange = 50f..100f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add
+                    )
+                }
             }
+        }
+    }
+}
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+@Composable
+private fun RemoteDpadButton(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    FilledTonalIconButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.size(44.dp),
+        colors = IconButtonDefaults.filledTonalIconButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.primary
+        )
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
 
-            // General Subtitle
+@Composable
+private fun RemoteRockerColumn(
+    label: String,
+    valueText: String,
+    enabled: Boolean,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .width(68.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            .padding(vertical = 10.dp, horizontal = 6.dp)
+    ) {
+        FilledTonalIconButton(
+            onClick = onIncrease,
+            enabled = enabled,
+            modifier = Modifier.size(38.dp)
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = "Increase $label", modifier = Modifier.size(18.dp))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                "General",
+                text = label,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = valueText,
                 color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Black
             )
-
-            // Edge rounding
-            SliderOptionRow(
-                title = "Edge rounding",
-                valueText = "${edgeRoundingPercent}%",
-                value = edgeRoundingPercent.toFloat(),
-                onValueChange = { onEdgeRoundingChanged(it.toInt()) },
-                valueRange = 0f..100f,
-                decreaseIcon = Icons.Rounded.Remove,
-                increaseIcon = Icons.Rounded.Add
-            )
-
-            // Maximum popup width
-            SliderOptionRow(
-                title = "Maximum popup width",
-                valueText = "${maxPopupWidthPercent}%",
-                value = maxPopupWidthPercent.toFloat(),
-                onValueChange = { onMaxPopupWidthChanged(it.toInt()) },
-                valueRange = 50f..100f,
-                decreaseIcon = Icons.Rounded.Remove,
-                increaseIcon = Icons.Rounded.Add
-            )
+        }
+        FilledTonalIconButton(
+            onClick = onDecrease,
+            enabled = enabled,
+            modifier = Modifier.size(38.dp)
+        ) {
+            Icon(Icons.Rounded.Remove, contentDescription = "Decrease $label", modifier = Modifier.size(18.dp))
         }
     }
 }
