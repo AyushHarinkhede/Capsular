@@ -45,17 +45,17 @@ Just like the Dynamic Island on iPhone 14 Pro and later, Capsular turns your cam
 | **Material You** | Full Dynamic Color — adapts to your wallpaper palette on Android 12+ |
 | **M3 Shape Scale** | Official Material 3 shape tokens (ExtraLarge 28dp cards, Full/Pill buttons) |
 | **Event Simulator** | Built-in simulator to test all event types: Call, Music, Timer, Stopwatch, Notification, Navigation, Progress, Recording, and more |
-| **Camera Calibration** | Precise alignment overlay to match your phone's exact punch-hole position |
+| **Camera Calibration** | Remote D-pad layout controller with step presets (`0.5px`, `1px`, `5px`, `10px`), position lock, and unified anchor coordinates |
 
 ---
 
 ## Supported Events
 
-- **Phone Calls** — incoming/ongoing with caller name and accept/reject controls
-- **Music Playback** — album art, track name, artist, scrubber, waveform
+- **Phone Calls** — incoming/ongoing with caller name, speakerphone, mute, and end-call controls
+- **Music & Stream Playback** — interactive scrubber, `-10s` / `+10s` seek, like/dislike rating, shuffle/repeat, custom media session actions, and audio output routing
 - **Screen Recording** — red dot + recording duration
 - **Voice Memo** — green waveform + duration
-- **Timer / Stopwatch** — live countdown/countup display
+- **Timer / Stopwatch** — two-way System Clock sync (`AlarmClock` & notification actions), quick time adjustments (`+1m`, `+5m`), and live lap split tracking
 - **Notifications** — app icon, title, message preview
 - **Navigation** — turn direction, distance, ETA
 - **Progress** — generic progress bar (downloads, uploads, etc.)
