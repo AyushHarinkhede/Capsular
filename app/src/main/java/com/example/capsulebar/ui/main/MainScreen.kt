@@ -46,7 +46,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import com.example.capsulebar.R
+import com.example.capsulebar.data.CapsuleEvent
 import com.example.capsulebar.data.CapsuleStateManager
 import java.io.File
 import java.io.FileOutputStream
@@ -900,6 +902,7 @@ fun PositionSection(
     onReset: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -951,6 +954,74 @@ fun PositionSection(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                }
+            }
+
+            // Quick Calibration Action Buttons: Auto-Detect Cutout & Test Bouncy Island
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        val activity = context as? android.app.Activity
+                        if (activity != null) {
+                            val result = com.example.capsulebar.util.DisplayCutoutHelper.detectCutout(activity)
+                            if (result != null) {
+                                onCameraPositionChanged(result.position)
+                                onXChanged(result.xOffsetPx)
+                                onYChanged(result.yOffsetPx)
+                                onCameraWidthChanged(result.cameraWidthDp)
+                                com.example.capsulebar.service.HapticManager.vibrateDouble()
+                                com.example.capsulebar.service.HapticSoundManager.playExpand()
+                            } else {
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                ) {
+                    Icon(Icons.Rounded.CenterFocusStrong, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Auto-Detect", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        com.example.capsulebar.service.HapticSoundManager.playCapsuleAppear()
+                        CapsuleStateManager.postEvent(
+                            CapsuleEvent.Notification(
+                                id = "test_bounce_${System.currentTimeMillis()}",
+                                packageName = "com.example.capsulebar",
+                                appName = "Capsule Bar",
+                                title = "Dynamic Island",
+                                text = "Bouncy Emerge & Retract Test",
+                                priority = 990,
+                                durationMs = 3800
+                            )
+                        )
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                    ),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                ) {
+                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Test Bounce", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -1081,6 +1152,69 @@ fun PositionSection(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // 4-Way Precision D-Pad Micro Nudge Panel (1px fine stepping)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Fine Micro Nudge (X: ${xOffset}px | Y: ${yOffset}px)",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FilledTonalIconButton(
+                            onClick = {
+                                onXChanged((xOffset - 1).coerceIn(-300, 300))
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.Rounded.KeyboardArrowLeft, contentDescription = "Left 1px", modifier = Modifier.size(18.dp))
+                        }
+                        FilledTonalIconButton(
+                            onClick = {
+                                onYChanged((yOffset - 1).coerceIn(0, 200))
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Up 1px", modifier = Modifier.size(18.dp))
+                        }
+                        FilledTonalIconButton(
+                            onClick = {
+                                onYChanged((yOffset + 1).coerceIn(0, 200))
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Down 1px", modifier = Modifier.size(18.dp))
+                        }
+                        FilledTonalIconButton(
+                            onClick = {
+                                onXChanged((xOffset + 1).coerceIn(-300, 300))
+                                com.example.capsulebar.service.HapticSoundManager.playTick()
+                            },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = "Right 1px", modifier = Modifier.size(18.dp))
                         }
                     }
                 }

@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -214,10 +215,10 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     val cameraCenterXDp = baseCameraCenterXDp + (xOffset / density)
     val topOffsetDp = if (showAsNotch) 0f else (yOffset / density)
 
-    val springSpec = remember(quickAnimations, premiumAnimations) {
+    val springBouncy = remember(quickAnimations, premiumAnimations) {
         spring<Float>(
-            dampingRatio = if (quickAnimations) 0.52f else if (premiumAnimations) 0.42f else 0.50f,
-            stiffness = if (quickAnimations) 650f else if (premiumAnimations) 380f else 480f
+            dampingRatio = if (quickAnimations) 0.50f else if (premiumAnimations) 0.42f else 0.44f,
+            stiffness = if (quickAnimations) 580f else if (premiumAnimations) 320f else 390f
         )
     }
 
@@ -271,59 +272,107 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         DisplayMode.HIDDEN    -> (heightDp.toFloat() / 2f)
     }
 
-    val leftWidth  by animateFloatAsState(
-        targetValue = if (uiState.isHidden && !showAlways) idlePunchHoleWidth else leftWidthTarget,
-        animationSpec = springSpec,
+    val isVisible = (!uiState.isHidden && uiState.mainEvent != null) || showAlways
+
+    val leftWidth by animateFloatAsState(
+        targetValue = if (!isVisible && !showAlways) idlePunchHoleWidth else leftWidthTarget,
+        animationSpec = springBouncy,
         label = "leftWidth"
     )
-    val leftHeight by animateFloatAsState(targetValue = leftHeightTarget, animationSpec = springSpec, label = "leftHeight")
-    val leftRadius by animateFloatAsState(targetValue = leftRadiusTarget, animationSpec = springSpec, label = "leftRadius")
+    val leftHeight by animateFloatAsState(
+        targetValue = if (!isVisible && !showAlways) heightDp.toFloat() else leftHeightTarget,
+        animationSpec = springBouncy,
+        label = "leftHeight"
+    )
+    val leftRadius by animateFloatAsState(targetValue = leftRadiusTarget, animationSpec = springBouncy, label = "leftRadius")
 
-    val isVisible = !uiState.isHidden || showAlways
     val capsuleAlpha by animateFloatAsState(
         targetValue = if (isVisible) 1f else 0f,
-        animationSpec = tween(durationMillis = 150),
+        animationSpec = if (isVisible) {
+            tween(durationMillis = 160)
+        } else {
+            // Stay fully visible while liquid-retracting into punch-hole, fade only in final 200ms
+            tween(durationMillis = 200, delayMillis = 180)
+        },
         label = "capsuleAlpha"
     )
 
-    var scaleTarget by remember { mutableStateOf(1f) }
+    // Dynamic Island scale bounce: pop on emerge from notch, squeeze on retract into notch
+    val scaleAnim = remember { Animatable(1f) }
     val prevEventId = remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(uiState.mainEvent?.id) {
+    val prevVisible = remember { mutableStateOf(isVisible) }
+
+    LaunchedEffect(uiState.mainEvent?.id, isVisible) {
         val newId = uiState.mainEvent?.id
-        if (newId != null && newId != prevEventId.value) {
-            scaleTarget = 0.88f
-            kotlinx.coroutines.delay(55)
-            scaleTarget = 1f
-            prevEventId.value = newId
+        if (isVisible && !prevVisible.value) {
+            // Emerge from punch-hole: rapid pop and bouncy overshoot
+            scaleAnim.snapTo(0.78f)
+            scaleAnim.animateTo(
+                targetValue = 1.06f,
+                animationSpec = spring(dampingRatio = 0.40f, stiffness = 520f)
+            )
+            scaleAnim.animateTo(
+                targetValue = 1.00f,
+                animationSpec = spring(dampingRatio = 0.44f, stiffness = 380f)
+            )
+        } else if (newId != null && newId != prevEventId.value) {
+            // New event arrival bounce
+            scaleAnim.animateTo(
+                targetValue = 1.07f,
+                animationSpec = spring(dampingRatio = 0.40f, stiffness = 600f)
+            )
+            scaleAnim.animateTo(
+                targetValue = 1.00f,
+                animationSpec = spring(dampingRatio = 0.44f, stiffness = 380f)
+            )
+        } else if (!isVisible && prevVisible.value) {
+            // Retract Anticipation Bounce into notch
+            scaleAnim.animateTo(
+                targetValue = 1.02f,
+                animationSpec = tween(durationMillis = 40)
+            )
+            scaleAnim.animateTo(
+                targetValue = 0.90f,
+                animationSpec = spring(dampingRatio = 0.48f, stiffness = 420f)
+            )
+            scaleAnim.animateTo(
+                targetValue = 1.00f,
+                animationSpec = spring(dampingRatio = 0.55f, stiffness = 350f)
+            )
         }
+        prevEventId.value = newId
+        prevVisible.value = isVisible
     }
-    val capsuleScale by animateFloatAsState(
-        targetValue = scaleTarget,
-        animationSpec = spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow),
-        label = "capsuleScale"
-    )
 
     // Split circle animation
     val isSplit = uiState.displayMode == DisplayMode.SPLIT && uiState.splitEvent != null
     val splitTargetSize = if (isSplit) heightDp.toFloat() else 0f
-    val splitSize by animateFloatAsState(targetValue = splitTargetSize, animationSpec = springSpec, label = "splitSize")
+    val splitSize by animateFloatAsState(targetValue = splitTargetSize, animationSpec = springBouncy, label = "splitSize")
     val splitGap = 10f
 
-    // â”€â”€ ANCHOR COMPUTATIONS â”€â”€
-    // The main capsule is ALWAYS anchored right around cameraCenterXDp.
-    // As leftWidth grows from idlePunchHoleWidth to activeCollapsedWidth,
-    // it smoothly expands outwards equally to the left and to the right!
-    val pillLeftDp = if (uiState.displayMode == DisplayMode.EXPANDED) {
-        ((screenWidthFloatDp - leftWidth) / 2f).coerceAtLeast(0f)
-    } else {
-        (cameraCenterXDp - (leftWidth / 2f)).coerceAtLeast(0f)
+    // ── ANCHOR COMPUTATIONS WITH ZERO CAMERA SHIFT ──
+    val pillLeftDp = when {
+        uiState.displayMode == DisplayMode.EXPANDED -> {
+            ((screenWidthFloatDp - leftWidth) / 2f).coerceAtLeast(0f)
+        }
+        cameraPosition == "Left" -> {
+            val leftMargin = 4f
+            (cameraCenterXDp - (cameraWidthDp / 2f) - leftMargin).coerceAtLeast(0f)
+        }
+        cameraPosition == "Right" -> {
+            val rightMargin = 4f
+            (cameraCenterXDp + (cameraWidthDp / 2f) + rightMargin - leftWidth).coerceAtLeast(0f)
+        }
+        else -> {
+            (cameraCenterXDp - (leftWidth / 2f)).coerceAtLeast(0f)
+        }
     }
 
-    // Secondary split circle appears to the side WITHOUT shifting the main capsule away from the camera!
+    // Secondary split circle appears cleanly to the side WITHOUT shifting the main capsule away from the camera!
     val splitLeftDp = if (splitPosition == "Right") {
-        cameraCenterXDp + (leftWidth / 2f) + splitGap
+        pillLeftDp + leftWidth + splitGap
     } else {
-        cameraCenterXDp - (leftWidth / 2f) - splitGap - splitSize
+        pillLeftDp - splitGap - splitSize
     }
 
     val pillShape = if (showAsNotch && uiState.displayMode != DisplayMode.EXPANDED) {
@@ -384,8 +433,8 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 .height(leftHeight.dp)
                 .graphicsLayer {
                     alpha = capsuleAlpha
-                    scaleX = capsuleScale
-                    scaleY = capsuleScale
+                    scaleX = scaleAnim.value
+                    scaleY = scaleAnim.value
                 }
                 .clip(pillShape)
                 .background(
@@ -436,13 +485,11 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                                     } else {
                                         // Tap -> Play sensory tap feedback & expand!
                                         com.example.capsulebar.service.HapticSoundManager.playCapsuleTap()
-                                        scaleTarget = 0.90f
                                         hintJob?.cancel()
                                         hintJob = scope.launch {
-                                            delay(65)
-                                            scaleTarget = 1.05f
-                                            delay(65)
-                                            scaleTarget = 1f
+                                            scaleAnim.animateTo(0.90f, tween(50))
+                                            scaleAnim.animateTo(1.05f, tween(60))
+                                            scaleAnim.animateTo(1.00f, spring(dampingRatio = 0.44f, stiffness = 380f))
                                             com.example.capsulebar.service.HapticSoundManager.playExpand()
                                             CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
                                         }
@@ -1687,20 +1734,37 @@ fun CalibrationScreen(
     val screenWidthFloatDp = configuration.screenWidthDp.toFloat()
     val density = LocalDensity.current.density
 
+    // Dynamic reactive states for real-time dragging & HUD nudges
+    var curXOffset by remember { mutableStateOf(settings.xOffset) }
+    var curYOffset by remember { mutableStateOf(settings.yOffset) }
+
     val baseCameraCenterXDp = when (cameraPosition) {
         "Left"  -> (cameraWidthDp / 2f + 16f)
         "Right" -> (screenWidthFloatDp - (cameraWidthDp / 2f + 16f))
         else    -> screenWidthFloatDp / 2f
     }
-    val cameraCenterXDp = baseCameraCenterXDp + (settings.xOffset / density)
-    val topOffsetDp = if (settings.showAsNotch) 0f else (settings.yOffset / density)
+    val cameraCenterXDp = baseCameraCenterXDp + (curXOffset / density)
+    val topOffsetDp = if (settings.showAsNotch) 0f else (curYOffset / density)
 
-    val pillLeftDp = (cameraCenterXDp - (widthDp / 2f)).coerceAtLeast(0f)
+    val pillLeftDp = when {
+        cameraPosition == "Left" -> {
+            val leftMargin = 4f
+            (cameraCenterXDp - (cameraWidthDp / 2f) - leftMargin).coerceAtLeast(0f)
+        }
+        cameraPosition == "Right" -> {
+            val rightMargin = 4f
+            (cameraCenterXDp + (cameraWidthDp / 2f) + rightMargin - widthDp.toFloat()).coerceAtLeast(0f)
+        }
+        else -> {
+            (cameraCenterXDp - (widthDp / 2f)).coerceAtLeast(0f)
+        }
+    }
+
     val splitGap = 10f
     val splitLeftDp = if (settings.splitPosition == "Right") {
-        cameraCenterXDp + (widthDp / 2f) + splitGap
+        pillLeftDp + widthDp + splitGap
     } else {
-        cameraCenterXDp - (widthDp / 2f) - splitGap - heightDp.toFloat()
+        pillLeftDp - splitGap - heightDp.toFloat()
     }
 
     val pillShape = if (settings.showAsNotch) {
@@ -1710,7 +1774,22 @@ fun CalibrationScreen(
     }
 
     Box(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    val newX = (curXOffset + dragAmount.x.toInt()).coerceIn(-300, 300)
+                    val newY = (curYOffset + dragAmount.y.toInt()).coerceIn(0, 250)
+                    if (newX != curXOffset || newY != curYOffset) {
+                        curXOffset = newX
+                        curYOffset = newY
+                        settings.xOffset = newX
+                        settings.yOffset = newY
+                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                    }
+                }
+            }
     ) {
         // Main Capsule outline
         Box(
@@ -1719,19 +1798,19 @@ fun CalibrationScreen(
                 .width(widthDp.dp)
                 .height(heightDp.dp)
                 .clip(pillShape)
-                .background(Color.Black.copy(alpha = 0.88f))
-                .border(2.dp, Color(0xFF00D2FF), pillShape),
+                .background(Color.Black.copy(alpha = 0.90f))
+                .border(2.dp, Color(0xFF00E5FF), pillShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "MAIN CAPSULE",
-                color = Color(0xFF00D2FF),
+                color = Color(0xFF00E5FF),
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        // Camera Punch Hole alignment marker (Red circle with white center dot)
+        // Camera Punch Hole alignment marker (Pulsing Red circle with white center dot)
         Box(
             modifier = Modifier
                 .offset(
@@ -1769,22 +1848,111 @@ fun CalibrationScreen(
             )
         }
 
-        // Guide text below capsule
-        Box(
+        // Floating Precision HUD below the notch
+        Card(
             modifier = Modifier
                 .offset(
-                    x = (cameraCenterXDp - 110f).coerceAtLeast(0f).dp,
-                    y = (topOffsetDp + heightDp + 8f).dp
+                    x = ((screenWidthFloatDp - 310f) / 2f).coerceAtLeast(8f).dp,
+                    y = (topOffsetDp + heightDp + 12f).dp
                 )
-                .width(220.dp),
-            contentAlignment = Alignment.Center
+                .width(310.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xF2101014)),
+            border = BorderStroke(1.dp, Color(0x5500E5FF))
         ) {
-            Text(
-                text = "â–² ALIGN RED RING OVER CAMERA â–²",
-                color = Color(0xFF00D2FF),
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold
-            )
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "POSITION: X:${curXOffset}px  Y:${curYOffset}px",
+                            color = Color(0xFF00E5FF),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Text(
+                            text = "Drag screen or tap arrows to center red ring",
+                            color = Color(0xBBFFFFFF),
+                            fontSize = 9.sp
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                            settings.isCalibrationMode = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = Color.Black),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                        modifier = Modifier.height(28.dp),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("✓ Done", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // D-Pad Micro Nudge Controls (1px precision fine tuning)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Left
+                    FilledTonalIconButton(
+                        onClick = {
+                            curXOffset = (curXOffset - 1).coerceIn(-300, 300)
+                            settings.xOffset = curXOffset
+                            com.example.capsulebar.service.HapticSoundManager.playTick()
+                        },
+                        modifier = Modifier.size(32.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0x28FFFFFF), contentColor = Color.White)
+                    ) {
+                        Icon(Icons.Rounded.ArrowBack, contentDescription = "Left", modifier = Modifier.size(15.dp))
+                    }
+                    // Up
+                    FilledTonalIconButton(
+                        onClick = {
+                            curYOffset = (curYOffset - 1).coerceIn(0, 250)
+                            settings.yOffset = curYOffset
+                            com.example.capsulebar.service.HapticSoundManager.playTick()
+                        },
+                        modifier = Modifier.size(32.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0x28FFFFFF), contentColor = Color.White)
+                    ) {
+                        Icon(Icons.Rounded.ArrowUpward, contentDescription = "Up", modifier = Modifier.size(15.dp))
+                    }
+                    // Down
+                    FilledTonalIconButton(
+                        onClick = {
+                            curYOffset = (curYOffset + 1).coerceIn(0, 250)
+                            settings.yOffset = curYOffset
+                            com.example.capsulebar.service.HapticSoundManager.playTick()
+                        },
+                        modifier = Modifier.size(32.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0x28FFFFFF), contentColor = Color.White)
+                    ) {
+                        Icon(Icons.Rounded.ArrowDownward, contentDescription = "Down", modifier = Modifier.size(15.dp))
+                    }
+                    // Right
+                    FilledTonalIconButton(
+                        onClick = {
+                            curXOffset = (curXOffset + 1).coerceIn(-300, 300)
+                            settings.xOffset = curXOffset
+                            com.example.capsulebar.service.HapticSoundManager.playTick()
+                        },
+                        modifier = Modifier.size(32.dp),
+                        colors = IconButtonDefaults.filledTonalIconButtonColors(containerColor = Color(0x28FFFFFF), contentColor = Color.White)
+                    ) {
+                        Icon(Icons.Rounded.ArrowForward, contentDescription = "Right", modifier = Modifier.size(15.dp))
+                    }
+                }
+            }
         }
     }
 }

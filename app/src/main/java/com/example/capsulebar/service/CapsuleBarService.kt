@@ -437,6 +437,8 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         }
     }
 
+    private var hideJob: kotlinx.coroutines.Job? = null
+
     private fun updateLayoutParams(uiState: CapsuleUiState? = null) {
         val view = composeView ?: return
         val state = uiState ?: CapsuleStateManager.uiState.value
@@ -447,23 +449,54 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         val orientation = resources.configuration.orientation
         val isLandscape = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         
-        val isHidden = state.isHidden || (isLocked && !settings.showOnLockscreen) || (isLandscape && !settings.showInLandscape)
+        val shouldBeHidden = !isCalibrating && (
+            (state.isHidden && !settings.showAlways) ||
+            (isLocked && !settings.showOnLockscreen) ||
+            (isLandscape && !settings.showInLandscape)
+        )
 
         val density = resources.displayMetrics.density
-        if (isHidden) {
-            params.width = 1
-            params.height = 1
-            params.x = 0
-            params.y = 0
-            params.gravity = Gravity.TOP or Gravity.START
+        if (shouldBeHidden) {
+            // Immediately drop touch interception so user interacts with background apps freely
             params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-            @Suppress("DEPRECATION")
-            view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            try {
+                if (view.isAttachedToWindow) {
+                    windowManager.updateViewLayout(view, params)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            hideJob?.cancel()
+            hideJob = lifecycleScope.launch {
+                // Wait 450ms so fluid dynamic island bounce-back into punch-hole notch completes
+                kotlinx.coroutines.delay(450L)
+                val currentState = CapsuleStateManager.uiState.value
+                val stillHidden = !settings.isCalibrationMode && (
+                    (currentState.isHidden && !settings.showAlways) ||
+                    (keyguardManager.isKeyguardLocked && !settings.showOnLockscreen)
+                )
+                if (stillHidden && view.isAttachedToWindow) {
+                    params.width = 1
+                    params.height = 1
+                    params.x = 0
+                    params.y = 0
+                    params.gravity = Gravity.TOP or Gravity.START
+                    try {
+                        windowManager.updateViewLayout(view, params)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
         } else {
+            hideJob?.cancel()
+            hideJob = null
+
             params.width = WindowManager.LayoutParams.MATCH_PARENT
             params.gravity = Gravity.TOP or Gravity.START
             params.x = 0
@@ -471,8 +504,8 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
             val contentHeightDp = when {
                 state.displayMode == DisplayMode.EXPANDED -> 320f
-                isCalibrating -> (settings.heightDp + 50f)
-                else -> (settings.heightDp + 24f)
+                isCalibrating -> 280f
+                else -> (settings.heightDp + 36f)
             }
             val yOffsetPx = if (settings.showAsNotch) 0 else settings.yOffset
             params.height = (contentHeightDp * density).toInt() + yOffsetPx
@@ -485,14 +518,14 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
             @Suppress("DEPRECATION")
             view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-        }
 
-        try {
-            if (view.isAttachedToWindow) {
-                windowManager.updateViewLayout(view, params)
+            try {
+                if (view.isAttachedToWindow) {
+                    windowManager.updateViewLayout(view, params)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
