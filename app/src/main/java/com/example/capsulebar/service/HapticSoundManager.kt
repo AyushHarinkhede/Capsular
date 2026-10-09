@@ -1,41 +1,60 @@
 package com.example.capsulebar.service
 
 /**
- * HapticSoundManager — unified dispatcher for tactile haptics + crisp audio cues.
+ * HapticSoundManager — unified dispatcher coordinating tactile haptics
+ * and authentic Android/Material You audio cues across the app and capsule.
  */
 object HapticSoundManager {
 
-    /** Button taps, icon clicks, card selection */
+    /** Button taps, card clicks, option selections */
     fun playClick() {
         HapticManager.vibrateClick()
         SoundManager.playClick()
     }
 
-    /** Sliders, stepper detents, calibration micro adjustments */
+    /** Sliders, steppers, calibration notches */
     fun playTick() {
         HapticManager.vibrateTick()
         SoundManager.playTick()
     }
 
-    /** Toggle switches (ON / OFF) */
+    /** Switch toggle transitions (ON / OFF) */
     fun playToggle(isOn: Boolean) {
         HapticManager.vibrateToggle(isOn)
         SoundManager.playToggle(isOn)
     }
 
-    /** Capsule expansion / bloom into card */
+    /** Capsule or new event appears at the punch-hole notch */
+    fun playCapsuleAppear() {
+        HapticManager.vibrateAppear()
+        SoundManager.playAppear()
+    }
+
+    /** Direct tap on the capsule pill or split circle */
+    fun playCapsuleTap() {
+        HapticManager.vibrateTap()
+        SoundManager.playClick()
+    }
+
+    /** Expansion from notch pill into rich card */
     fun playExpand() {
-        HapticManager.vibrateHeavy()
+        HapticManager.vibrateExpand()
         SoundManager.playExpand()
     }
 
-    /** Capsule collapse / dismiss back into pill */
+    /** Collapse from card back into notch pill */
     fun playCollapse() {
-        HapticManager.vibrateTick()
+        HapticManager.vibrateCollapse()
         SoundManager.playCollapse()
     }
 
-    /** Destructive / heavy action */
+    /** Rhythmic alert for incoming phone calls */
+    fun playIncomingCall() {
+        HapticManager.vibrateIncomingCall()
+        SoundManager.playCallAlert()
+    }
+
+    /** Destructive / long-press actions */
     fun playHeavy() {
         HapticManager.vibrateHeavy()
         SoundManager.playClick()
@@ -44,6 +63,6 @@ object HapticSoundManager {
     /** Service started or confirmation pulse */
     fun playSuccess() {
         HapticManager.vibrateDouble()
-        SoundManager.playExpand()
+        SoundManager.playSuccess()
     }
 }

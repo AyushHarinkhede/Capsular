@@ -58,6 +58,10 @@ class CapsuleSettings(context: Context) {
         get() = prefs.getBoolean("is_lock_state_enabled", true)
         set(value) = prefs.edit().putBoolean("is_lock_state_enabled", value).apply()
 
+    var isSystemToggleEnabled: Boolean
+        get() = prefs.getBoolean("is_system_toggle_enabled", true)
+        set(value) = prefs.edit().putBoolean("is_system_toggle_enabled", value).apply()
+
     var isNavigationEnabled: Boolean
         get() = prefs.getBoolean("is_navigation_enabled", true)
         set(value) = prefs.edit().putBoolean("is_navigation_enabled", value).apply()

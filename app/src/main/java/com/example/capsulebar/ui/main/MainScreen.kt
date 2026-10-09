@@ -1972,7 +1972,10 @@ private fun SimBtn(
     onClick: () -> Unit
 ) {
     Button(
-        onClick = onClick,
+        onClick = {
+            com.example.capsulebar.service.HapticSoundManager.playClick()
+            onClick()
+        },
         colors = ButtonDefaults.filledTonalButtonColors(containerColor = bgColor, contentColor = textColor),
         shape = MaterialTheme.shapes.extraLarge,   // M3 Full/Pill
         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)

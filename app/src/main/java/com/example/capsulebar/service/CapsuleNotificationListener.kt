@@ -80,18 +80,33 @@ class CapsuleNotificationListener : NotificationListenerService() {
         // 2. Intercept system/app Calls (incoming or ongoing)
         val template = extras?.getString(Notification.EXTRA_TEMPLATE) ?: ""
         val isCallNotification = notification.category == Notification.CATEGORY_CALL ||
-                template.contains("CallStyle")
+                template.contains("CallStyle") ||
+                packageName.contains("dialer") ||
+                packageName.contains("telecom") ||
+                packageName.contains("incall") ||
+                packageName.contains("phone") && (combinedText.contains("incoming") || combinedText.contains("call") || combinedText.contains("ringing"))
 
         if (isCallNotification) {
             val title = if (titleText.isNotEmpty()) titleText else "Active Call"
-            val text = if (textText.isNotEmpty()) textText else "Call in progress"
+            var text = if (textText.isNotEmpty()) textText else "Call in progress"
             
             // Check if it's an incoming call (by looking for Answer/Accept action button)
             var isIncomingCall = false
             notification.actions?.forEach { action ->
                 val titleStr = action.title.toString().lowercase()
-                if (titleStr.contains("answer") || titleStr.contains("accept")) {
+                if (titleStr.contains("answer") || titleStr.contains("accept") || titleStr.contains("receive")) {
                     isIncomingCall = true
+                }
+            }
+
+            // If ongoing, check if chronometer duration is available
+            if (!isIncomingCall && extras?.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false) == true) {
+                val base = extras.getLong("android.chronometerBase", notification.`when`)
+                if (base > 0L) {
+                    val elapsed = ((android.os.SystemClock.elapsedRealtime() - base) / 1000).coerceAtLeast(0L)
+                    val m = elapsed / 60
+                    val s = elapsed % 60
+                    text = "%02d:%02d".format(m, s)
                 }
             }
 
@@ -101,10 +116,10 @@ class CapsuleNotificationListener : NotificationListenerService() {
                 CapsuleEvent.Call(
                     id = eventId,
                     contactName = title,
-                    durationText = text,
+                    durationText = if (text.isNotEmpty()) text else (if (isIncomingCall) "Incoming Call" else "00:00"),
                     isIncoming = isIncomingCall,
-                    priority = 88,
-                    durationMs = 0 // Persistent until notification cleared
+                    priority = 1000, // HIGHEST — always takes precedence
+                    durationMs = 0   // Persistent until notification cleared
                 )
             )
             return // Skip generic notification display
@@ -177,66 +192,99 @@ class CapsuleNotificationListener : NotificationListenerService() {
             return
         }
 
-        // 5. Detect Timer / Stopwatch from Google Clock and AOSP deskclock
+        // 5. Detect Timer / Stopwatch from Google Clock, Samsung Clock, AOSP, and all OEM clock apps
         val isClockApp = packageName == "com.google.android.deskclock" ||
                          packageName == "com.android.deskclock" ||
+                         packageName == "com.sec.android.app.clockpackage" ||
+                         packageName == "com.oneplus.deskclock" ||
+                         packageName == "com.coloros.alarmclock" ||
+                         packageName == "com.oplus.alarmclock" ||
+                         packageName == "com.motorola.blur.alarmclock" ||
+                         packageName == "com.miui.deskclock" ||
                          packageName.contains("deskclock") ||
-                         packageName.contains("clock")
+                         packageName.contains("clock") ||
+                         packageName.contains("timer") ||
+                         packageName.contains("stopwatch")
 
-        if (isClockApp) {
-            val rawTitle = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-            val rawText  = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()  ?: ""
-            val combined = "${rawTitle.lowercase()} ${rawText.lowercase()}"
+        val hasChronometer = extras?.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false) == true
+        val isCountDown = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            extras?.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN, false) == true
+        } else false
+        val chronometerBase = extras?.getLong("android.chronometerBase", notification.`when`) ?: notification.`when`
 
-            when {
-                // Timer — title contains a time pattern like "0:30" or "Timer" with countdown text
-                combined.contains("timer") || combined.matches(Regex(".*\\d+:\\d+.*")) -> {
-                    // Try to parse remaining seconds from title (e.g. "0:30", "1:05:00")
-                    val timePattern = Regex("(\\d+):(\\d+)(?::(\\d+))?")
-                    val matchResult = timePattern.find(rawTitle) ?: timePattern.find(rawText)
-                    val remainingSecs: Long = if (matchResult != null) {
-                        val groups = matchResult.groupValues
-                        val a = groups[1].toLongOrNull() ?: 0L
-                        val b = groups[2].toLongOrNull() ?: 0L
-                        val c = groups.getOrNull(3)?.toLongOrNull()
-                        if (c != null) a * 3600 + b * 60 + c else a * 60 + b
-                    } else 0L
+        val rawTitle = extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
+        val rawText  = extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()  ?: ""
+        val combined = "${rawTitle.lowercase()} ${rawText.lowercase()}"
+        val timePattern = Regex("(\\d+):(\\d+)(?::(\\d+))?")
 
-                    val eventId = "timer_${sbn.id}"
-                    activeNotificationsMap[eventId] = sbn
-                    CapsuleStateManager.postEvent(
-                        CapsuleEvent.Timer(
-                            id = eventId,
-                            label = if (rawTitle.lowercase().contains("timer")) rawTitle else "Timer",
-                            remainingSeconds = remainingSecs,
-                            isRunning = true
-                        )
-                    )
-                }
-                // Stopwatch — "stopwatch" keyword or "lap" keyword
-                combined.contains("stopwatch") || combined.contains("lap") -> {
-                    val timePattern = Regex("(\\d+):(\\d+)(?::(\\d+))?")
-                    val matchResult = timePattern.find(rawTitle) ?: timePattern.find(rawText)
-                    val elapsedSecs: Long = if (matchResult != null) {
-                        val groups = matchResult.groupValues
-                        val a = groups[1].toLongOrNull() ?: 0L
-                        val b = groups[2].toLongOrNull() ?: 0L
-                        val c = groups.getOrNull(3)?.toLongOrNull()
-                        if (c != null) a * 3600 + b * 60 + c else a * 60 + b
-                    } else 0L
+        val isStopwatchCategory = notification.category == Notification.CATEGORY_STOPWATCH ||
+                (hasChronometer && !isCountDown && (isClockApp || combined.contains("stopwatch") || combined.contains("lap"))) ||
+                (isClockApp && (combined.contains("stopwatch") || combined.contains("lap")))
 
-                    val eventId = "stopwatch_${sbn.id}"
-                    activeNotificationsMap[eventId] = sbn
-                    CapsuleStateManager.postEvent(
-                        CapsuleEvent.Stopwatch(
-                            id = eventId,
-                            elapsedSeconds = elapsedSecs,
-                            isRunning = true,
-                            label = "Stopwatch"
-                        )
-                    )
-                }
+        val isTimerCategory = (hasChronometer && isCountDown) ||
+                (isClockApp && (combined.contains("timer") || combined.contains("countdown")))
+
+        if (isStopwatchCategory) {
+            val matchResult = timePattern.find(rawTitle) ?: timePattern.find(rawText)
+            val elapsedSecs: Long = if (chronometerBase > 0L) {
+                ((android.os.SystemClock.elapsedRealtime() - chronometerBase) / 1000).coerceAtLeast(0L)
+            } else if (matchResult != null) {
+                val groups = matchResult.groupValues
+                val a = groups[1].toLongOrNull() ?: 0L
+                val b = groups[2].toLongOrNull() ?: 0L
+                val c = groups.getOrNull(3)?.toLongOrNull()
+                if (c != null) a * 3600 + b * 60 + c else a * 60 + b
+            } else 0L
+
+            var isRunning = true
+            notification.actions?.forEach { action ->
+                val at = action.title.toString().lowercase()
+                if (at.contains("start") || at.contains("resume")) isRunning = false
+                if (at.contains("pause") || at.contains("lap")) isRunning = true
             }
+
+            val eventId = "stopwatch_${sbn.id}"
+            activeNotificationsMap[eventId] = sbn
+            CapsuleStateManager.postEvent(
+                CapsuleEvent.Stopwatch(
+                    id = eventId,
+                    elapsedSeconds = elapsedSecs,
+                    isRunning = isRunning,
+                    label = "Stopwatch"
+                )
+            )
+            return
+        }
+
+        if (isTimerCategory || (isClockApp && (combined.contains("timer") || timePattern.containsMatchIn(rawTitle)))) {
+            val matchResult = timePattern.find(rawTitle) ?: timePattern.find(rawText)
+            val remainingSecs: Long = if (chronometerBase > 0L && isCountDown) {
+                ((chronometerBase - android.os.SystemClock.elapsedRealtime()) / 1000).coerceAtLeast(0L)
+            } else if (matchResult != null) {
+                val groups = matchResult.groupValues
+                val a = groups[1].toLongOrNull() ?: 0L
+                val b = groups[2].toLongOrNull() ?: 0L
+                val c = groups.getOrNull(3)?.toLongOrNull()
+                if (c != null) a * 3600 + b * 60 + c else a * 60 + b
+            } else 0L
+
+            var isRunning = true
+            notification.actions?.forEach { action ->
+                val at = action.title.toString().lowercase()
+                if (at.contains("start") || at.contains("resume")) isRunning = false
+                if (at.contains("pause")) isRunning = true
+            }
+
+            val eventId = "timer_${sbn.id}"
+            activeNotificationsMap[eventId] = sbn
+            CapsuleStateManager.postEvent(
+                CapsuleEvent.Timer(
+                    id = eventId,
+                    label = if (rawTitle.lowercase().contains("timer")) rawTitle else "Timer",
+                    remainingSeconds = remainingSecs,
+                    isRunning = isRunning
+                )
+            )
             return
         }
 
@@ -614,8 +662,18 @@ class CapsuleNotificationListener : NotificationListenerService() {
         fun triggerNotificationAction(eventId: String, actionTitle: String): Boolean {
             val sbn = activeNotificationsMap[eventId] ?: return false
             val actions = sbn.notification.actions ?: return false
+            val searchAliases = when (actionTitle.lowercase()) {
+                "answer" -> listOf("answer", "accept", "receive", "pick up")
+                "decline" -> listOf("decline", "reject", "dismiss", "ignore", "hang up", "end")
+                "pause" -> listOf("pause", "stop", "hold")
+                "start", "resume" -> listOf("start", "resume", "play")
+                "reset" -> listOf("reset", "restart", "clear", "lap")
+                "+1", "add" -> listOf("+1", "add", "extend")
+                else -> listOf(actionTitle.lowercase())
+            }
             for (action in actions) {
-                if (action.title.toString().lowercase().contains(actionTitle.lowercase())) {
+                val title = action.title.toString().lowercase()
+                if (searchAliases.any { title.contains(it) }) {
                     try {
                         action.actionIntent.send()
                         return true

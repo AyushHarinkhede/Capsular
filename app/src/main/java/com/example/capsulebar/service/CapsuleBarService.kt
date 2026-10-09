@@ -11,10 +11,12 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.graphics.PixelFormat
+import android.hardware.camera2.CameraManager
 import android.media.AudioManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
+import android.telephony.TelephonyManager
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -64,9 +66,85 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     private var lastBatteryLevel = -1
     private var lastIsCharging = false
 
+    private var cameraManager: CameraManager? = null
+    private val torchCallback = object : CameraManager.TorchCallback() {
+        override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
+            if (!settings.isSystemToggleEnabled) return
+            if (enabled) {
+                CapsuleStateManager.postEvent(
+                    CapsuleEvent.SystemToggle(
+                        id = "toggle_flashlight",
+                        name = "Flashlight",
+                        isEnabled = true,
+                        priority = 750,
+                        durationMs = 0
+                    )
+                )
+            } else {
+                CapsuleStateManager.removeEvent("toggle_flashlight")
+            }
+        }
+    }
+
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
+                TelephonyManager.ACTION_PHONE_STATE_CHANGED -> {
+                    val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+                    when (state) {
+                        TelephonyManager.EXTRA_STATE_RINGING -> {
+                            val incomingNumber = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER) ?: "Incoming Call"
+                            CapsuleStateManager.postEvent(
+                                CapsuleEvent.Call(
+                                    id = "call_system",
+                                    contactName = incomingNumber,
+                                    durationText = "Ringing...",
+                                    isIncoming = true,
+                                    priority = 1000,
+                                    durationMs = 0
+                                )
+                            )
+                            HapticSoundManager.playIncomingCall()
+                        }
+                        TelephonyManager.EXTRA_STATE_OFFHOOK -> {
+                            CapsuleStateManager.postEvent(
+                                CapsuleEvent.Call(
+                                    id = "call_system",
+                                    contactName = "Active Call",
+                                    durationText = "00:00",
+                                    isIncoming = false,
+                                    priority = 1000,
+                                    durationMs = 0
+                                )
+                            )
+                        }
+                        TelephonyManager.EXTRA_STATE_IDLE -> {
+                            CapsuleStateManager.removeEvent("call_system")
+                            CapsuleStateManager.removeEvent("call")
+                            HapticSoundManager.playCollapse()
+                        }
+                    }
+                }
+                "android.media.VOLUME_CHANGED_ACTION" -> {
+                    if (settings.isSoundProfileEnabled) {
+                        val streamType = intent.getIntExtra("android.media.EXTRA_VOLUME_STREAM_TYPE", -1)
+                        if (streamType == AudioManager.STREAM_MUSIC || streamType == AudioManager.STREAM_RING) {
+                            val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                            val currentVol = audioManager.getStreamVolume(streamType)
+                            val maxVol = audioManager.getStreamMaxVolume(streamType)
+                            val pct = if (maxVol > 0) (currentVol * 100 / maxVol) else 0
+                            val label = if (streamType == AudioManager.STREAM_MUSIC) "Media $pct%" else "Ring $pct%"
+                            CapsuleStateManager.postEvent(
+                                CapsuleEvent.SoundProfile(
+                                    profile = label,
+                                    priority = 650,
+                                    durationMs = 1800
+                                )
+                            )
+                            HapticSoundManager.playTick()
+                        }
+                    }
+                }
                 Intent.ACTION_BATTERY_CHANGED -> {
                     if (!settings.isBatteryEnabled) return
                     val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
@@ -211,6 +289,13 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             startForeground(notificationId, createNotification())
         }
 
+        cameraManager = getSystemService(Context.CAMERA_SERVICE) as? CameraManager
+        try {
+            cameraManager?.registerTorchCallback(torchCallback, null)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         setupOverlay()
 
         // Collect UI State changes and update WindowManager layout parameters dynamically
@@ -219,10 +304,10 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             CapsuleStateManager.uiState.collect { uiState ->
                 updateLayoutParams(uiState)
                 handleAudioVisualizerState(uiState)
-                // Haptic: tick when a NEW event appears in the main capsule
+                // Sensory appear cue (haptic + sound) when a new event arrives at punch-hole capsule
                 val currentId = uiState.mainEvent?.id
                 if (currentId != null && currentId != lastMainEventId) {
-                    HapticManager.vibrateTick()
+                    HapticSoundManager.playCapsuleAppear()
                 }
                 lastMainEventId = currentId
             }
@@ -292,6 +377,8 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     private fun registerReceivers() {
         val filter = IntentFilter().apply {
+            addAction(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
+            addAction("android.media.VOLUME_CHANGED_ACTION")
             addAction(Intent.ACTION_BATTERY_CHANGED)
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
@@ -443,6 +530,12 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     override fun onDestroy() {
         val prefs = getSharedPreferences("capsule_settings", Context.MODE_PRIVATE)
         prefs.unregisterOnSharedPreferenceChangeListener(preferenceChangeListener)
+
+        try {
+            cameraManager?.unregisterTorchCallback(torchCallback)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         try {
             unregisterReceiver(receiver)

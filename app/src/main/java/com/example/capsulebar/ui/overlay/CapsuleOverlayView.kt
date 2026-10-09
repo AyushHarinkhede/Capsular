@@ -367,7 +367,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                     .clip(CircleShape)
                     .background(getCapsuleColor(uiState.splitEvent, defaultColor, autoColor, useAppColors, context))
                     .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        com.example.capsulebar.service.HapticSoundManager.playCapsuleTap()
                         CapsuleStateManager.toggleExpanded()
                     },
                 contentAlignment = Alignment.Center
@@ -419,7 +419,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                             } else {
                                 val dy = dragAmount.y
                                 if (uiState.displayMode == DisplayMode.EXPANDED && dy < -8f) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    com.example.capsulebar.service.HapticSoundManager.playCollapse()
                                     CapsuleStateManager.collapseToCompact()
                                 }
                             }
@@ -434,8 +434,8 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                                         com.example.capsulebar.service.HapticSoundManager.playExpand()
                                         CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
                                     } else {
-                                        // Tap -> Play scale wiggle animation & expand immediately!
-                                        com.example.capsulebar.service.HapticSoundManager.playExpand()
+                                        // Tap -> Play sensory tap feedback & expand!
+                                        com.example.capsulebar.service.HapticSoundManager.playCapsuleTap()
                                         scaleTarget = 0.90f
                                         hintJob?.cancel()
                                         hintJob = scope.launch {
@@ -443,6 +443,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                                             scaleTarget = 1.05f
                                             delay(65)
                                             scaleTarget = 1f
+                                            com.example.capsulebar.service.HapticSoundManager.playExpand()
                                             CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
                                         }
                                     }
@@ -1946,12 +1947,16 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { CapsuleStateManager.sendMediaAction("previous") }) {
+            IconButton(onClick = {
+                com.example.capsulebar.service.HapticSoundManager.playClick()
+                CapsuleStateManager.sendMediaAction("previous")
+            }) {
                 Icon(Icons.Rounded.SkipPrevious, null, tint = Color.White)
             }
             IconButton(
                 onClick = {
                     val nextAction = if (event.isPlaying) "pause" else "play"
+                    com.example.capsulebar.service.HapticSoundManager.playToggle(!event.isPlaying)
                     CapsuleStateManager.sendMediaAction(nextAction)
                 },
                 modifier = Modifier
@@ -1964,7 +1969,10 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
                     tint = Color.Black
                 )
             }
-            IconButton(onClick = { CapsuleStateManager.sendMediaAction("next") }) {
+            IconButton(onClick = {
+                com.example.capsulebar.service.HapticSoundManager.playClick()
+                CapsuleStateManager.sendMediaAction("next")
+            }) {
                 Icon(Icons.Rounded.SkipNext, null, tint = Color.White)
             }
         }
@@ -2221,13 +2229,17 @@ private fun TimerExpandedCard(event: CapsuleEvent.Timer) {
         }
         
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            val haptic = LocalHapticFeedback.current
             IconButton(
                 onClick = {
-                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                    timerRunning = !timerRunning
+                    val nextRunning = !timerRunning
+                    timerRunning = nextRunning
+                    com.example.capsulebar.service.HapticSoundManager.playToggle(nextRunning)
+                    com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(
+                        event.id,
+                        if (nextRunning) "start" else "pause"
+                    )
                     CapsuleStateManager.postEvent(
-                        event.copy(isRunning = timerRunning, remainingSeconds = localRemaining)
+                        event.copy(isRunning = nextRunning, remainingSeconds = localRemaining)
                     )
                 },
                 modifier = Modifier
@@ -2242,10 +2254,11 @@ private fun TimerExpandedCard(event: CapsuleEvent.Timer) {
             }
             IconButton(
                 onClick = {
-                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                    localRemaining = 300L
+                    com.example.capsulebar.service.HapticSoundManager.playClick()
+                    com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "+1")
+                    localRemaining += 60L
                     CapsuleStateManager.postEvent(
-                        event.copy(remainingSeconds = 300L, isRunning = timerRunning)
+                        event.copy(remainingSeconds = localRemaining, isRunning = timerRunning)
                     )
                 },
                 modifier = Modifier
@@ -2256,7 +2269,9 @@ private fun TimerExpandedCard(event: CapsuleEvent.Timer) {
             }
             IconButton(
                 onClick = {
-                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                    com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "stop")
+                    com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
                     CapsuleStateManager.removeEvent(event.id)
                 },
                 modifier = Modifier
@@ -2582,7 +2597,32 @@ private fun AuthenticationExpandedCard(event: CapsuleEvent.Authentication) {
 
 @Composable
 private fun CallExpandedCard(event: CapsuleEvent.Call) {
-    val haptic = LocalHapticFeedback.current
+    var elapsedSeconds by remember(event.id) {
+        val parsed = Regex("(\\d+):(\\d+)").find(event.durationText)
+        val initial = if (parsed != null) {
+            val (m, s) = parsed.destructured
+            (m.toLongOrNull() ?: 0L) * 60 + (s.toLongOrNull() ?: 0L)
+        } else 0L
+        mutableStateOf(initial)
+    }
+    LaunchedEffect(event.id, event.isIncoming) {
+        if (!event.isIncoming) {
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                elapsedSeconds++
+            }
+        }
+    }
+    val callDurationStr = if (elapsedSeconds > 0) {
+        val m = elapsedSeconds / 60
+        val s = elapsedSeconds % 60
+        "%02d:%02d".format(m, s)
+    } else {
+        event.durationText.ifEmpty { "00:00" }
+    }
+    var isMuted by remember { mutableStateOf(false) }
+    var isSpeaker by remember { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2619,7 +2659,7 @@ private fun CallExpandedCard(event: CapsuleEvent.Call) {
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = event.durationText,
+                        text = callDurationStr,
                         color = Color(0xFF2E7D32),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
@@ -2635,7 +2675,7 @@ private fun CallExpandedCard(event: CapsuleEvent.Call) {
             ) {
                 Button(
                     onClick = {
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        com.example.capsulebar.service.HapticSoundManager.playClick()
                         com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "answer")
                         CapsuleStateManager.postEvent(
                             event.copy(isIncoming = false, durationText = "00:00")
@@ -2651,9 +2691,11 @@ private fun CallExpandedCard(event: CapsuleEvent.Call) {
                 }
                 Button(
                     onClick = {
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        com.example.capsulebar.service.HapticSoundManager.playHeavy()
                         com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "decline")
+                        com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
                         CapsuleStateManager.removeEvent(event.id)
+                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
                     shape = RoundedCornerShape(14.dp),
@@ -2671,29 +2713,47 @@ private fun CallExpandedCard(event: CapsuleEvent.Call) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove) },
+                    onClick = {
+                        isMuted = !isMuted
+                        com.example.capsulebar.service.HapticSoundManager.playToggle(isMuted)
+                    },
                     modifier = Modifier
-                        .size(36.dp)
-                        .background(Color(0x11FFFFFF), CircleShape)
+                        .size(38.dp)
+                        .background(if (isMuted) Color(0x44C62828) else Color(0x11FFFFFF), CircleShape)
                 ) {
-                    Icon(Icons.Rounded.VolumeOff, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                }
-                IconButton(
-                    onClick = { haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove) },
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(Color(0x11FFFFFF), CircleShape)
-                ) {
-                    Icon(Icons.Rounded.VolumeUp, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(
+                        imageVector = if (isMuted) Icons.Rounded.MicOff else Icons.Rounded.Mic,
+                        contentDescription = null,
+                        tint = if (isMuted) Color(0xFFEF5350) else Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
                 IconButton(
                     onClick = {
-                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                        com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
-                        CapsuleStateManager.removeEvent(event.id)
+                        isSpeaker = !isSpeaker
+                        com.example.capsulebar.service.HapticSoundManager.playToggle(isSpeaker)
                     },
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(38.dp)
+                        .background(if (isSpeaker) Color(0x332E7D32) else Color(0x11FFFFFF), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = if (isSpeaker) Icons.Rounded.VolumeUp else Icons.Rounded.VolumeDown,
+                        contentDescription = null,
+                        tint = if (isSpeaker) Color(0xFF81C784) else Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        com.example.capsulebar.service.HapticSoundManager.playHeavy()
+                        com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "end")
+                        com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
+                        CapsuleStateManager.removeEvent(event.id)
+                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                    },
+                    modifier = Modifier
+                        .size(38.dp)
                         .background(Color(0xFFC62828), CircleShape)
                 ) {
                     Icon(Icons.Rounded.Call, null, tint = Color.Black, modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = 135f))
@@ -3015,7 +3075,7 @@ private fun StopwatchExpandedCard(event: CapsuleEvent.Stopwatch) {
     LaunchedEffect(event.isRunning, event.elapsedSeconds) {
         if (event.isRunning) {
             while (true) {
-                delay(1000)
+                kotlinx.coroutines.delay(1000)
                 displayElapsed++
                 CapsuleStateManager.postEvent(
                     event.copy(elapsedSeconds = displayElapsed, isRunning = true)
@@ -3031,7 +3091,6 @@ private fun StopwatchExpandedCard(event: CapsuleEvent.Stopwatch) {
     } else {
         "%02d:%02d".format(minutes, secs)
     }
-    val haptic = LocalHapticFeedback.current
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -3062,8 +3121,12 @@ private fun StopwatchExpandedCard(event: CapsuleEvent.Stopwatch) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(
                 onClick = {
-                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                     val nextRunning = !event.isRunning
+                    com.example.capsulebar.service.HapticSoundManager.playToggle(nextRunning)
+                    com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(
+                        event.id,
+                        if (event.isRunning) "pause" else "start"
+                    )
                     CapsuleStateManager.postEvent(
                         event.copy(isRunning = nextRunning, elapsedSeconds = displayElapsed)
                     )
@@ -3080,7 +3143,8 @@ private fun StopwatchExpandedCard(event: CapsuleEvent.Stopwatch) {
             }
             IconButton(
                 onClick = {
-                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                    com.example.capsulebar.service.HapticSoundManager.playClick()
+                    com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "reset")
                     displayElapsed = 0L
                     CapsuleStateManager.postEvent(
                         event.copy(elapsedSeconds = 0L, isRunning = event.isRunning)
@@ -3094,7 +3158,8 @@ private fun StopwatchExpandedCard(event: CapsuleEvent.Stopwatch) {
             }
             IconButton(
                 onClick = {
-                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                    com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
                     CapsuleStateManager.removeEvent(event.id)
                 },
                 modifier = Modifier
