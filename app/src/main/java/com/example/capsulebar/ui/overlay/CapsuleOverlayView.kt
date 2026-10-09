@@ -205,7 +205,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     val density = LocalDensity.current.density
     val screenWidthFloatDp = LocalConfiguration.current.screenWidthDp.toFloat()
 
-    // ── EXACT CAMERA CUTOUT ANCHOR COORDINATES ──
+    // â”€â”€ EXACT CAMERA CUTOUT ANCHOR COORDINATES â”€â”€
     val baseCameraCenterXDp = when (cameraPosition) {
         "Left"  -> (cameraWidthDp / 2f + 16f)
         "Right" -> (screenWidthFloatDp - (cameraWidthDp / 2f + 16f))
@@ -221,7 +221,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         )
     }
 
-    // ── IDLE / RESTING STATE (PUNCH HOLE CIRCLE) ──
+    // â”€â”€ IDLE / RESTING STATE (PUNCH HOLE CIRCLE) â”€â”€
     val isIdleState = uiState.mainEvent == null
     val idlePunchHoleWidth = (cameraWidthDp + 6f).coerceAtLeast(heightDp.toFloat())
     val activeCollapsedWidth = widthDp.coerceAtLeast(heightDp * 2).toFloat()
@@ -309,7 +309,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     val splitSize by animateFloatAsState(targetValue = splitTargetSize, animationSpec = springSpec, label = "splitSize")
     val splitGap = 10f
 
-    // ── ANCHOR COMPUTATIONS ──
+    // â”€â”€ ANCHOR COMPUTATIONS â”€â”€
     // The main capsule is ALWAYS anchored right around cameraCenterXDp.
     // As leftWidth grows from idlePunchHoleWidth to activeCollapsedWidth,
     // it smoothly expands outwards equally to the left and to the right!
@@ -355,7 +355,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 }
             }
     ) {
-        // ── SPLIT CIRCLE (DOUBLE CAPSULE) ──
+        // â”€â”€ SPLIT CIRCLE (DOUBLE CAPSULE) â”€â”€
         if (splitSize > 0.5f && uiState.splitEvent != null) {
             Box(
                 modifier = Modifier
@@ -376,7 +376,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
             }
         }
 
-        // ── MAIN PILL ──
+        // â”€â”€ MAIN PILL â”€â”€
         Box(
             modifier = Modifier
                 .offset(x = pillLeftDp.dp, y = topOffsetDp.dp)
@@ -402,7 +402,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                         Modifier
                     }
                 )
-                // ── SLASH / DRAG GESTURE DETECTOR ──
+                // â”€â”€ SLASH / DRAG GESTURE DETECTOR â”€â”€
                 .pointerInput(uiState.displayMode) {
                     detectDragGestures(
                         onDragStart = { startOffset ->
@@ -431,11 +431,11 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                                 if (start != null && end != null) {
                                     val dist = (end - start).getDistance()
                                     if (dist > 100f) { // Swipe Cut slash threshold
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        com.example.capsulebar.service.HapticSoundManager.playExpand()
                                         CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
                                     } else {
                                         // Tap -> Play scale wiggle animation & expand immediately!
-                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        com.example.capsulebar.service.HapticSoundManager.playExpand()
                                         scaleTarget = 0.90f
                                         hintJob?.cancel()
                                         hintJob = scope.launch {
@@ -1476,7 +1476,7 @@ private fun ExpandedCard(event: CapsuleEvent) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
-    // ── CONTENT FADE-IN DELAY ─────────────────────────────────────────────────
+    // â”€â”€ CONTENT FADE-IN DELAY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     var contentVisible by remember { mutableStateOf(false) }
     val contentAlpha by animateFloatAsState(
         targetValue = if (contentVisible) 1f else 0f,
@@ -1540,8 +1540,8 @@ fun MusicVisualizer(isPlaying: Boolean) {
 
     val infiniteTransition = rememberInfiniteTransition(label = "visualizer")
 
-    // ── 4-BAR ORGANIC VISUALIZER ──────────────────────────────────────────────
-    // Each bar has a deliberately different duration so they never sync up —
+    // â”€â”€ 4-BAR ORGANIC VISUALIZER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Each bar has a deliberately different duration so they never sync up â€”
     // creating the irregular, alive-feeling waveform of the iOS Dynamic Island.
     // FastOutSlowInEasing gives a natural "breath" curve instead of robotic linear.
     val h1 by infiniteTransition.animateFloat(
@@ -1605,8 +1605,8 @@ fun VoiceWaveVisualizer() {
     val realAmplitudes by CapsuleStateManager.visualizerAmplitudes.collectAsStateWithLifecycle()
 
     val infiniteTransition = rememberInfiniteTransition(label = "voice")
-    // ── 4-BAR ORGANIC VOICE WAVEFORM ──────────────────────────────────────────
-    // Used for calls and voice recording — green tinted, same organic timing logic
+    // â”€â”€ 4-BAR ORGANIC VOICE WAVEFORM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Used for calls and voice recording â€” green tinted, same organic timing logic
     val h1 by infiniteTransition.animateFloat(
         initialValue = 0.25f, targetValue = 0.90f,
         animationSpec = infiniteRepeatable(tween(290, easing = FastOutSlowInEasing), RepeatMode.Reverse),
@@ -1779,7 +1779,7 @@ fun CalibrationScreen(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "▲ ALIGN RED RING OVER CAMERA ▲",
+                text = "â–² ALIGN RED RING OVER CAMERA â–²",
                 color = Color(0xFF00D2FF),
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold
@@ -2108,7 +2108,7 @@ private fun BluetoothExpandedCard(event: CapsuleEvent.Bluetooth, context: Contex
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (event.batteryLevel >= 0) "Connected • Headset" else "Active Connection",
+                        text = if (event.batteryLevel >= 0) "Connected â€¢ Headset" else "Active Connection",
                         color = Color.White.copy(alpha = 0.5f),
                         fontSize = 12.sp
                     )
@@ -2301,7 +2301,7 @@ private fun NavigationExpandedCard(event: CapsuleEvent.Navigation, context: Cont
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "${event.distance} • ETA: 12 mins",
+                    text = "${event.distance} â€¢ ETA: 12 mins",
                     color = Color(0xFF1565C0),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -3346,14 +3346,14 @@ private fun WeatherExpandedCard(event: CapsuleEvent.Weather) {
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "${event.tempText} • ${event.condition}",
+                    text = "${event.tempText} â€¢ ${event.condition}",
                     color = Color(0xFF80DEEA),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Text(
-                text = "H: 32° L: 24°",
+                text = "H: 32Â° L: 24Â°",
                 color = Color.White.copy(alpha = 0.5f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
@@ -3374,9 +3374,9 @@ private fun WeatherExpandedCard(event: CapsuleEvent.Weather) {
                 }
                 val tempText = when (idx) {
                     0 -> event.tempText
-                    1 -> "29°C"
-                    2 -> "28°C"
-                    else -> "26°C"
+                    1 -> "29Â°C"
+                    2 -> "28Â°C"
+                    else -> "26Â°C"
                 }
                 val icon = when (idx) {
                     0 -> if (event.condition.lowercase().contains("rain")) Icons.Rounded.Umbrella else Icons.Rounded.WbSunny

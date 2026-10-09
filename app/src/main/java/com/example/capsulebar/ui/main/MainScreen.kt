@@ -166,7 +166,16 @@ fun MainScreen(
     val splitPosition by viewModel.splitPosition.collectAsStateWithLifecycle()
     val nfcWristWatchTagId by viewModel.nfcWristWatchTagId.collectAsStateWithLifecycle()
     val nfcChetakTagId by viewModel.nfcChetakTagId.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val hapticsEnabled by viewModel.hapticsEnabled.collectAsStateWithLifecycle()
+    val soundEffectsEnabled by viewModel.soundEffectsEnabled.collectAsStateWithLifecycle()
     val activeRegistrationTask by viewModel.activeRegistrationTask.collectAsStateWithLifecycle()
+
+    val isDarkEffective = when (themeMode) {
+        "light" -> false
+        "system" -> androidx.compose.foundation.isSystemInDarkTheme()
+        else -> true
+    }
 
     Column(
         modifier = modifier
@@ -211,6 +220,25 @@ fun MainScreen(
                     fontWeight = FontWeight.Black,
                     letterSpacing = (-0.5).sp,
                     lineHeight = 26.sp
+                )
+            }
+            // Pixel UI Quick Theme Switcher Button
+            IconButton(
+                onClick = {
+                    val nextTarget = if (isDarkEffective) "light" else "dark"
+                    com.example.capsulebar.service.HapticSoundManager.playToggle(!isDarkEffective)
+                    viewModel.updateThemeMode(nextTarget)
+                },
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.20f))
+            ) {
+                Icon(
+                    imageVector = if (isDarkEffective) Icons.Rounded.DarkMode else Icons.Rounded.LightMode,
+                    contentDescription = "Toggle Theme",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
@@ -328,6 +356,9 @@ fun MainScreen(
                 .padding(horizontal = 24.dp)
         ) {
             AppearanceSection(
+                themeMode = themeMode,
+                hapticsEnabled = hapticsEnabled,
+                soundEffectsEnabled = soundEffectsEnabled,
                 showAsNotch = showAsNotch,
                 addBackground = addBackground,
                 showImages = showImages,
@@ -342,6 +373,9 @@ fun MainScreen(
                 useAndroidMusicControls = useAndroidMusicControls,
                 iconOption = iconOption,
                 bluetoothImagePath = bluetoothImagePath,
+                onThemeModeChanged = { viewModel.updateThemeMode(it) },
+                onHapticsToggle = { viewModel.toggleHaptics(it) },
+                onSoundEffectsToggle = { viewModel.toggleSoundEffects(it) },
                 onShowAsNotchToggle = { viewModel.toggleShowAsNotch(it) },
                 onAddBackgroundToggle = { viewModel.toggleAddBackground(it) },
                 onShowImagesToggle = { viewModel.toggleShowImages(it) },
@@ -811,12 +845,34 @@ fun ServiceControlSection(
             Switch(
                 checked = isServiceRunning,
                 onCheckedChange = {
+                    com.example.capsulebar.service.HapticSoundManager.playToggle(it)
                     onToggleService()
                 },
                 enabled = true,
+                thumbContent = if (isServiceRunning) {
+                    {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(SwitchDefaults.IconSize)
+                        )
+                    }
+                } else {
+                    {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(SwitchDefaults.IconSize)
+                        )
+                    }
+                },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primary
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    checkedIconColor = MaterialTheme.colorScheme.primary,
+                    uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                    uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    uncheckedIconColor = MaterialTheme.colorScheme.surfaceContainerHighest
                 )
             )
         }
@@ -1130,6 +1186,9 @@ fun PositionSection(
 
 @Composable
 fun AppearanceSection(
+    themeMode: String,
+    hapticsEnabled: Boolean,
+    soundEffectsEnabled: Boolean,
     showAsNotch: Boolean,
     addBackground: Boolean,
     showImages: Boolean,
@@ -1144,6 +1203,9 @@ fun AppearanceSection(
     useAndroidMusicControls: Boolean,
     iconOption: Int,
     bluetoothImagePath: String?,
+    onThemeModeChanged: (String) -> Unit,
+    onHapticsToggle: (Boolean) -> Unit,
+    onSoundEffectsToggle: (Boolean) -> Unit,
     onShowAsNotchToggle: (Boolean) -> Unit,
     onAddBackgroundToggle: (Boolean) -> Unit,
     onShowImagesToggle: (Boolean) -> Unit,
@@ -1180,11 +1242,118 @@ fun AppearanceSection(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                "Appearance",
+                "Appearance & Feedback",
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
+
+            // Theme Mode Selector (Pixel UI Segmented Button)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Application Theme",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Text(
+                    text = "Pure Black AMOLED dark mode or crisp Pure White light mode",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    val themes = listOf(
+                        Triple("dark", "Dark", Icons.Rounded.DarkMode),
+                        Triple("light", "Light", Icons.Rounded.LightMode),
+                        Triple("system", "Auto", Icons.Rounded.BrightnessAuto)
+                    )
+                    themes.forEach { (mode, label, icon) ->
+                        val isSelected = themeMode == mode
+                        val bg = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+                        val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                        
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(bg)
+                                .clickable {
+                                    com.example.capsulebar.service.HapticSoundManager.playClick()
+                                    onThemeModeChanged(mode)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = label,
+                                    tint = contentColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = label,
+                                    color = contentColor,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
+
+            // Sensory Feedback (Haptics & Audio)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "Sensory Feedback",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                ToggleOptionRow(
+                    title = "Haptic Vibrations",
+                    subtitle = "Tactile clicks, ticks, and expand vibrations synced across the app",
+                    checked = hapticsEnabled,
+                    onCheckedChange = {
+                        onHapticsToggle(it)
+                    }
+                )
+                ToggleOptionRow(
+                    title = "Sound Effects",
+                    subtitle = "Subtle, crisp system audio feedback for clicks, toggles and capsules",
+                    checked = soundEffectsEnabled,
+                    onCheckedChange = {
+                        onSoundEffectsToggle(it)
+                    }
+                )
+                FilledTonalButton(
+                    onClick = {
+                        com.example.capsulebar.service.HapticSoundManager.playSuccess()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(38.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Rounded.TouchApp, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Test Haptics & Sound Feedback", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
 
             // Popup
             Text("Popup", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -1353,7 +1522,11 @@ fun ToggleOptionRow(
         modifier = Modifier
             .fillMaxWidth()
             .pressClickEffect()
-            .clickable { onCheckedChange(!checked) }
+            .clickable {
+                val next = !checked
+                com.example.capsulebar.service.HapticSoundManager.playToggle(next)
+                onCheckedChange(next)
+            }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -1367,10 +1540,34 @@ fun ToggleOptionRow(
         Spacer(Modifier.width(16.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = { next ->
+                com.example.capsulebar.service.HapticSoundManager.playToggle(next)
+                onCheckedChange(next)
+            },
+            thumbContent = if (checked) {
+                {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                    )
+                }
+            } else {
+                {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(SwitchDefaults.IconSize)
+                    )
+                }
+            },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                checkedTrackColor = MaterialTheme.colorScheme.primary
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                checkedIconColor = MaterialTheme.colorScheme.primary,
+                uncheckedThumbColor = MaterialTheme.colorScheme.outline,
+                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                uncheckedIconColor = MaterialTheme.colorScheme.surfaceContainerHighest
             )
         )
     }
@@ -1386,14 +1583,20 @@ fun RadioOptionRow(
         modifier = Modifier
             .fillMaxWidth()
             .pressClickEffect()
-            .clickable { onClick() }
+            .clickable {
+                com.example.capsulebar.service.HapticSoundManager.playClick()
+                onClick()
+            }
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start
     ) {
         RadioButton(
             selected = selected,
-            onClick = onClick,
+            onClick = {
+                com.example.capsulebar.service.HapticSoundManager.playClick()
+                onClick()
+            },
             modifier = Modifier.padding(end = 12.dp)
         )
         Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
@@ -1426,7 +1629,10 @@ fun SliderOptionRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             IconButton(
-                onClick = { onValueChange((value - step).coerceIn(valueRange.start, valueRange.endInclusive)) },
+                onClick = {
+                    com.example.capsulebar.service.HapticSoundManager.playClick()
+                    onValueChange((value - step).coerceIn(valueRange.start, valueRange.endInclusive))
+                },
                 modifier = Modifier
                     .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape)
                     .size(32.dp)
@@ -1435,12 +1641,20 @@ fun SliderOptionRow(
             }
             Slider(
                 value = value,
-                onValueChange = onValueChange,
+                onValueChange = { newVal ->
+                    if (kotlin.math.abs(newVal - value) >= step * 0.85f) {
+                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                    }
+                    onValueChange(newVal)
+                },
                 valueRange = valueRange,
                 modifier = Modifier.weight(1f)
             )
             IconButton(
-                onClick = { onValueChange((value + step).coerceIn(valueRange.start, valueRange.endInclusive)) },
+                onClick = {
+                    com.example.capsulebar.service.HapticSoundManager.playClick()
+                    onValueChange((value + step).coerceIn(valueRange.start, valueRange.endInclusive))
+                },
                 modifier = Modifier
                     .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), CircleShape)
                     .size(32.dp)

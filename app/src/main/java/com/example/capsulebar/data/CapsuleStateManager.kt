@@ -33,6 +33,15 @@ object CapsuleStateManager {
     private val _isNotificationPanelVisible = MutableStateFlow(false)
     val isNotificationPanelVisible: StateFlow<Boolean> = _isNotificationPanelVisible.asStateFlow()
 
+    private val _themeMode = MutableStateFlow("dark")
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    private val _hapticsEnabled = MutableStateFlow(true)
+    val hapticsEnabled: StateFlow<Boolean> = _hapticsEnabled.asStateFlow()
+
+    private val _soundEffectsEnabled = MutableStateFlow(true)
+    val soundEffectsEnabled: StateFlow<Boolean> = _soundEffectsEnabled.asStateFlow()
+
     private var prefs: android.content.SharedPreferences? = null
     private var isManuallyHidden = false
     private var collapseJob: Job? = null
@@ -41,13 +50,39 @@ object CapsuleStateManager {
 
     fun initialize(context: android.content.Context) {
         prefs = context.applicationContext.getSharedPreferences("capsule_settings", android.content.Context.MODE_PRIVATE)
+        _themeMode.value = prefs?.getString("theme_mode", "dark") ?: "dark"
+        _hapticsEnabled.value = prefs?.getBoolean("haptics_enabled", true) ?: true
+        _soundEffectsEnabled.value = prefs?.getBoolean("sound_effects_enabled", true) ?: true
+
+        // Also initialize sound & haptic managers
+        com.example.capsulebar.service.HapticManager.init(context)
+        com.example.capsulebar.service.SoundManager.init(context)
+
         prefs?.registerOnSharedPreferenceChangeListener { _, key ->
-            if (key == "show_always" || key == "dismiss_delay_sec" || key == "hide_on_notification_panel" ||
-                key == "allow_two_popups" || key == "reverse_order" || key == "hide_in_foreground" ||
-                key == "auto_hide_expanded_popup_sec" || key == "auto_hide_small_popup_hours") {
-                recalculateState()
+            when (key) {
+                "theme_mode" -> _themeMode.value = prefs?.getString("theme_mode", "dark") ?: "dark"
+                "haptics_enabled" -> _hapticsEnabled.value = prefs?.getBoolean("haptics_enabled", true) ?: true
+                "sound_effects_enabled" -> _soundEffectsEnabled.value = prefs?.getBoolean("sound_effects_enabled", true) ?: true
+                "show_always", "dismiss_delay_sec", "hide_on_notification_panel",
+                "allow_two_popups", "reverse_order", "hide_in_foreground",
+                "auto_hide_expanded_popup_sec", "auto_hide_small_popup_hours" -> recalculateState()
             }
         }
+    }
+
+    fun setThemeMode(mode: String) {
+        _themeMode.value = mode
+        prefs?.edit()?.putString("theme_mode", mode)?.apply()
+    }
+
+    fun setHapticsEnabled(enabled: Boolean) {
+        _hapticsEnabled.value = enabled
+        prefs?.edit()?.putBoolean("haptics_enabled", enabled)?.apply()
+    }
+
+    fun setSoundEffectsEnabled(enabled: Boolean) {
+        _soundEffectsEnabled.value = enabled
+        prefs?.edit()?.putBoolean("sound_effects_enabled", enabled)?.apply()
     }
 
     private fun getCompactDurationMs(): Long {
@@ -125,8 +160,13 @@ object CapsuleStateManager {
 
 
     fun setDisplayMode(mode: DisplayMode) {
+        val prevMode = _uiState.value.displayMode
         collapseJob?.cancel()
         _uiState.value = _uiState.value.copy(displayMode = mode, isHidden = mode == DisplayMode.HIDDEN)
+
+        if (prevMode == DisplayMode.EXPANDED && (mode == DisplayMode.COLLAPSED || mode == DisplayMode.SPLIT || mode == DisplayMode.HIDDEN)) {
+            com.example.capsulebar.service.HapticSoundManager.playCollapse()
+        }
         
         if (mode == DisplayMode.EXPANDED) {
             val duration = getExpandedDurationMs()
@@ -137,6 +177,7 @@ object CapsuleStateManager {
                     if (current.displayMode == DisplayMode.EXPANDED) {
                         val newMode = if (current.splitEvent != null) DisplayMode.SPLIT else DisplayMode.COLLAPSED
                         _uiState.value = current.copy(displayMode = newMode)
+                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
                     }
                 }
             }

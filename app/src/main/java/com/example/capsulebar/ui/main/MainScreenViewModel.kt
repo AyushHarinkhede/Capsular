@@ -195,6 +195,15 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _nfcChetakTagId = MutableStateFlow(settings.nfcChetakTagId)
     val nfcChetakTagId: StateFlow<String> = _nfcChetakTagId.asStateFlow()
 
+    private val _themeMode = MutableStateFlow(settings.themeMode)
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    private val _hapticsEnabled = MutableStateFlow(settings.hapticsEnabled)
+    val hapticsEnabled: StateFlow<Boolean> = _hapticsEnabled.asStateFlow()
+
+    private val _soundEffectsEnabled = MutableStateFlow(settings.soundEffectsEnabled)
+    val soundEffectsEnabled: StateFlow<Boolean> = _soundEffectsEnabled.asStateFlow()
+
     private val _activeRegistrationTask = MutableStateFlow<String?>(null)
     val activeRegistrationTask: StateFlow<String?> = _activeRegistrationTask.asStateFlow()
 
@@ -879,6 +888,24 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     fun updateSplitPosition(value: String) {
         settings.splitPosition = value
         _splitPosition.value = value
+    }
+
+    fun updateThemeMode(value: String) {
+        settings.themeMode = value
+        _themeMode.value = value
+        CapsuleStateManager.setThemeMode(value)
+    }
+
+    fun toggleHaptics(value: Boolean) {
+        settings.hapticsEnabled = value
+        _hapticsEnabled.value = value
+        CapsuleStateManager.setHapticsEnabled(value)
+    }
+
+    fun toggleSoundEffects(value: Boolean) {
+        settings.soundEffectsEnabled = value
+        _soundEffectsEnabled.value = value
+        CapsuleStateManager.setSoundEffectsEnabled(value)
     }
 }
 

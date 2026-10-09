@@ -1,4 +1,4 @@
-﻿package com.example.capsulebar.service
+package com.example.capsulebar.service
 
 import android.content.Context
 import android.os.Build
@@ -20,19 +20,27 @@ import android.os.VibratorManager
 object HapticManager {
 
     private var vibrator: Vibrator? = null
+    private var settings: com.example.capsulebar.data.CapsuleSettings? = null
 
     fun init(context: Context) {
+        val appCtx = context.applicationContext
+        settings = com.example.capsulebar.data.CapsuleSettings(appCtx)
         vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vm = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            val vm = appCtx.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
             vm.defaultVibrator
         } else {
             @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            appCtx.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         }
     }
 
-    /** Short, light click — for toggles, button presses, expand/collapse tap. */
+    private fun isEnabled(): Boolean {
+        return settings?.hapticsEnabled != false
+    }
+
+    /** Short, light click — for buttons, card taps. */
     fun vibrateClick() {
+        if (!isEnabled()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_CLICK))
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -43,20 +51,41 @@ object HapticManager {
         }
     }
 
-    /** Very light, quick tick — for slider steps, new event arrives. */
+    /** Very light, quick tick — for slider steps, calibration adjustments. */
     fun vibrateTick() {
+        if (!isEnabled()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_TICK))
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createOneShot(15, 50))
+            vibrator?.vibrate(VibrationEffect.createOneShot(12, 50))
         } else {
             @Suppress("DEPRECATION")
-            vibrator?.vibrate(15)
+            vibrator?.vibrate(12)
+        }
+    }
+
+    /** Tactile toggle on / off feedback */
+    fun vibrateToggle(isOn: Boolean) {
+        if (!isEnabled()) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (isOn) {
+                // Energetic crisp double tap
+                val timings = longArrayOf(0, 15, 30, 20)
+                val amplitudes = intArrayOf(0, 100, 0, 180)
+                vibrator?.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+            } else {
+                // Soft falling tick
+                vibrator?.vibrate(VibrationEffect.createOneShot(18, 70))
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator?.vibrate(if (isOn) 35 else 20)
         }
     }
 
     /** Firm, heavy bump — for long-press, swipe-to-hide, destructive actions. */
     fun vibrateHeavy() {
+        if (!isEnabled()) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             vibrator?.vibrate(VibrationEffect.createPredefined(VibrationEffect.EFFECT_HEAVY_CLICK))
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

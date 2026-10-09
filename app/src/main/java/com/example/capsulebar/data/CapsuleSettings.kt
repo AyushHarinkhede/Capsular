@@ -226,4 +226,17 @@ class CapsuleSettings(context: Context) {
     var nfcChetakTagId: String
         get() = prefs.getString("nfc_chetak_tag_id", "") ?: ""
         set(value) = prefs.edit().putString("nfc_chetak_tag_id", value).apply()
+
+    // "dark", "light", or "system"
+    var themeMode: String
+        get() = prefs.getString("theme_mode", "dark") ?: "dark"
+        set(value) = prefs.edit().putString("theme_mode", value).apply()
+
+    var hapticsEnabled: Boolean
+        get() = prefs.getBoolean("haptics_enabled", true)
+        set(value) = prefs.edit().putBoolean("haptics_enabled", value).apply()
+
+    var soundEffectsEnabled: Boolean
+        get() = prefs.getBoolean("sound_effects_enabled", true)
+        set(value) = prefs.edit().putBoolean("sound_effects_enabled", value).apply()
 }

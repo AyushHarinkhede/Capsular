@@ -13,6 +13,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.example.capsulebar.theme.CapsuleBarTheme
 import com.example.capsulebar.data.CapsuleStateManager
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
 
@@ -26,7 +28,15 @@ class MainActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         setContent {
-            CapsuleBarTheme {
+            val themeMode by CapsuleStateManager.themeMode.collectAsStateWithLifecycle()
+            val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+            val isDark = when (themeMode) {
+                "light" -> false
+                "system" -> isSystemDark
+                else -> true
+            }
+
+            CapsuleBarTheme(darkTheme = isDark) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
