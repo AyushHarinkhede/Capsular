@@ -185,44 +185,39 @@ fun MainScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ── TOP LOGO + TITLE BAR ──────────────────────────────────────────────────
-        // M3 ExtraLarge shape (28dp) — the iconic Pixel widget / Material You shape.
-        // Background uses the system dynamic primary color (wallpaper-extracted on API 31+).
+        // ── TOP LOGO + TITLE BAR (FLOATING / TRANSPARENT) ────────────────────────
         Row(
             modifier = Modifier
                 .widthIn(max = 440.dp)
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .clip(MaterialTheme.shapes.extraLarge)
-                .background(
-                    Brush.linearGradient(
-                        0.0f to MaterialTheme.colorScheme.primary,
-                        0.65f to MaterialTheme.colorScheme.primary,
-                        1.0f to MaterialTheme.colorScheme.tertiary.copy(alpha = 0.80f)
-                    )
-                )
-                .padding(horizontal = 20.dp, vertical = 8.dp),
+                .padding(horizontal = 24.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Image(
                 painter = painterResource(id = R.drawable.logo),
-                contentDescription = "Capsular logo",
+                contentDescription = "Capsule Bar logo",
                 modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(56.dp)
+                    .clip(RoundedCornerShape(14.dp))
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Capsular",
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    text = "Capsule Bar",
+                    color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = (-0.5).sp,
-                    lineHeight = 26.sp
+                    lineHeight = 28.sp
+                )
+                Text(
+                    text = "Dynamic Punch-Hole Island",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
-            // Pixel UI Quick Theme Switcher Button
+            // Pixel UI Quick Theme Switcher Button (floating semi-transparent)
             IconButton(
                 onClick = {
                     val nextTarget = if (isDarkEffective) "light" else "dark"
@@ -230,15 +225,15 @@ fun MainScreen(
                     viewModel.updateThemeMode(nextTarget)
                 },
                 modifier = Modifier
-                    .size(46.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.20f))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
             ) {
                 Icon(
                     imageVector = if (isDarkEffective) Icons.Rounded.DarkMode else Icons.Rounded.LightMode,
                     contentDescription = "Toggle Theme",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(24.dp)
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
