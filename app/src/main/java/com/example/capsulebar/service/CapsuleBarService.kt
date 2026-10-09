@@ -180,7 +180,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     }
 
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" || key == "is_calibration_mode" || key == "camera_position" || key == "camera_width_dp") {
+        if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" || key == "is_calibration_mode" || key == "camera_position" || key == "camera_width_dp" || key == "show_as_notch") {
             updateLayoutParams()
         }
     }
@@ -362,30 +362,13 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         
         val isHidden = state.isHidden || (isLocked && !settings.showOnLockscreen) || (isLandscape && !settings.showInLandscape)
 
-        if (isCalibrating) {
-            val density = resources.displayMetrics.density
-            val widthDp = settings.widthDp.toFloat()
-            val heightDp = settings.heightDp.toFloat()
-            val paddingPx = (16 * density).toInt()
-
-            params.width = (widthDp * density).toInt() + paddingPx * 2
-            params.height = (heightDp * density).toInt() + paddingPx
-            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            params.x = settings.xOffset
-            params.y = settings.yOffset
-            params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-            @Suppress("DEPRECATION")
-            view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-        } else if (isHidden) {
+        val density = resources.displayMetrics.density
+        if (isHidden) {
             params.width = 1
             params.height = 1
             params.x = 0
             params.y = 0
-            params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            params.gravity = Gravity.TOP or Gravity.START
             params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -394,81 +377,27 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             @Suppress("DEPRECATION")
             view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
         } else {
-            val density = resources.displayMetrics.density
-            
-            val widthDp = when (state.displayMode) {
-                DisplayMode.COLLAPSED -> settings.widthDp.toFloat()
-                DisplayMode.EXPANDED -> 340f * (settings.maxPopupWidthPercent / 100f)
-                DisplayMode.SPLIT -> settings.widthDp.coerceAtLeast(settings.heightDp * 2).toFloat() + (settings.cameraWidthDp + 16f) + settings.heightDp.toFloat()
-                DisplayMode.HIDDEN -> (settings.cameraWidthDp + 24f)
-            }
-            
-            val heightDp = when (state.displayMode) {
-                DisplayMode.COLLAPSED -> settings.heightDp.toFloat()
-                DisplayMode.EXPANDED -> 130f + settings.heightDp.toFloat()
-                DisplayMode.SPLIT -> settings.heightDp.toFloat()
-                DisplayMode.HIDDEN -> settings.heightDp.toFloat()
-            }
-            
-            val paddingPx = (16 * density).toInt()
-            params.height = (heightDp * density).toInt() + paddingPx
-            params.y = settings.yOffset
+            params.width = WindowManager.LayoutParams.MATCH_PARENT
+            params.gravity = Gravity.TOP or Gravity.START
+            params.x = 0
+            params.y = 0
 
-            val shouldHideStatusbar = state.mainEvent != null
-            if (shouldHideStatusbar) {
-                params.width = WindowManager.LayoutParams.MATCH_PARENT
-                params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                params.x = 0
-                params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                        WindowManager.LayoutParams.FLAG_FULLSCREEN
-                @Suppress("DEPRECATION")
-                view.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
-                                          View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            } else {
-                params.width = (widthDp * density).toInt() + paddingPx * 2
-                
-                val screenWidth = resources.displayMetrics.widthPixels
-                val cameraWidthPx = (settings.cameraWidthDp * density).toInt()
-                val edgePaddingPx = (16 * density).toInt()
-
-                var targetX = when (settings.cameraPosition) {
-                    "Left" -> {
-                        params.gravity = Gravity.TOP or Gravity.START
-                        edgePaddingPx + settings.xOffset
-                    }
-                    "Right" -> {
-                        params.gravity = Gravity.TOP or Gravity.END
-                        edgePaddingPx - settings.xOffset
-                    }
-                    else -> {
-                        params.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-                        settings.xOffset
-                    }
-                }
-                
-                if (state.displayMode == DisplayMode.SPLIT) {
-                    val spacerWidthTarget = settings.cameraWidthDp + 16f
-                    val rightWidthTarget = settings.heightDp.toFloat()
-                    val shiftDp = (spacerWidthTarget + rightWidthTarget) / 2f
-                    if (settings.cameraPosition != "Left" && settings.cameraPosition != "Right") {
-                        targetX += (shiftDp * density).toInt()
-                    }
-                }
-                params.x = targetX
-                params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
-                @Suppress("DEPRECATION")
-                view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            val contentHeightDp = when {
+                state.displayMode == DisplayMode.EXPANDED -> 320f
+                isCalibrating -> (settings.heightDp + 50f)
+                else -> (settings.heightDp + 24f)
             }
+            val yOffsetPx = if (settings.showAsNotch) 0 else settings.yOffset
+            params.height = (contentHeightDp * density).toInt() + yOffsetPx
+
+            params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+            @Suppress("DEPRECATION")
+            view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
         }
 
         try {

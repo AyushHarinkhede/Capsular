@@ -292,22 +292,26 @@ class CapsuleNotificationListener : NotificationListenerService() {
                 if (title.isNotEmpty() || text.isNotEmpty()) {
                     var appLabel = packageName
                     var appIconBitmap: Bitmap? = null
+                    var largeIconBitmap: Bitmap? = notification.largeIcon
                     try {
                         val pm = packageManager
                         val appInfo = pm.getApplicationInfo(packageName, 0)
                         appLabel = pm.getApplicationLabel(appInfo).toString()
-                        
-                        val largeIcon = notification.largeIcon
-                        if (largeIcon != null) {
-                            appIconBitmap = largeIcon
-                        } else {
-                            val drawable = pm.getApplicationIcon(appInfo)
-                            if (drawable != null) {
-                                appIconBitmap = drawableToBitmap(drawable)
-                            }
+                        val drawable = pm.getApplicationIcon(appInfo)
+                        if (drawable != null) {
+                            appIconBitmap = drawableToBitmap(drawable)
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
+                    }
+
+                    // Notification count option: 0 = Show latest notification only
+                    if (settings.notificationCountOption == 0) {
+                        val keysToRemove = activeNotificationsMap.keys.filter { it.startsWith("notification_") }
+                        keysToRemove.forEach { key ->
+                            activeNotificationsMap.remove(key)
+                            CapsuleStateManager.removeEvent(key)
+                        }
                     }
 
                     val eventId = "notification_${packageName}_${sbn.id}"
@@ -319,9 +323,16 @@ class CapsuleNotificationListener : NotificationListenerService() {
                             appName = appLabel,
                             title = title,
                             text = text,
-                            appIcon = appIconBitmap
+                            appIcon = appIconBitmap ?: largeIconBitmap,
+                            largeImage = largeIconBitmap,
+                            smallIcon = appIconBitmap
                         )
                     )
+
+                    // Auto expand notifications
+                    if (settings.autoExpand) {
+                        CapsuleStateManager.setDisplayMode(com.example.capsulebar.data.DisplayMode.EXPANDED)
+                    }
                 }
             }
         }

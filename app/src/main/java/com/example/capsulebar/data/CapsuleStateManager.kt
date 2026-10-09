@@ -37,11 +37,14 @@ object CapsuleStateManager {
     private var isManuallyHidden = false
     private var collapseJob: Job? = null
     private var hideJob: Job? = null
+    var currentForegroundPackage: String? = null
 
     fun initialize(context: android.content.Context) {
         prefs = context.applicationContext.getSharedPreferences("capsule_settings", android.content.Context.MODE_PRIVATE)
         prefs?.registerOnSharedPreferenceChangeListener { _, key ->
-            if (key == "show_always" || key == "dismiss_delay_sec" || key == "hide_on_notification_panel") {
+            if (key == "show_always" || key == "dismiss_delay_sec" || key == "hide_on_notification_panel" ||
+                key == "allow_two_popups" || key == "reverse_order" || key == "hide_in_foreground" ||
+                key == "auto_hide_expanded_popup_sec" || key == "auto_hide_small_popup_hours") {
                 recalculateState()
             }
         }
@@ -52,7 +55,8 @@ object CapsuleStateManager {
     }
 
     private fun getExpandedDurationMs(): Long {
-        return (prefs?.getInt("expanded_duration_sec", 8) ?: 8) * 1000L
+        val sec = prefs?.getInt("auto_hide_expanded_popup_sec", prefs?.getInt("expanded_duration_sec", 8) ?: 8) ?: 8
+        return sec * 1000L
     }
 
     private fun getDismissDelayMs(): Long {
@@ -174,7 +178,28 @@ object CapsuleStateManager {
     }
 
     private fun recalculateState() {
-        val sortedList = activeEvents.values.sortedByDescending { it.priority }
+        val hideInForeground = prefs?.getBoolean("hide_in_foreground", true) ?: true
+        val foregroundPkg = currentForegroundPackage
+        val eventsToConsider = if (hideInForeground && !foregroundPkg.isNullOrEmpty()) {
+            activeEvents.values.filter { event ->
+                val pkg = when (event) {
+                    is CapsuleEvent.Notification -> event.packageName
+                    is CapsuleEvent.Music -> event.packageName
+                    is CapsuleEvent.Call -> if (event.id.startsWith("call_")) event.id.removePrefix("call_") else ""
+                    else -> ""
+                }
+                pkg.isEmpty() || pkg != foregroundPkg
+            }
+        } else {
+            activeEvents.values.toList()
+        }
+
+        val reverseOrder = prefs?.getBoolean("reverse_order", false) ?: false
+        val sortedList = if (reverseOrder) {
+            eventsToConsider.sortedWith(compareBy<CapsuleEvent> { it.priority }.thenByDescending { it.id })
+        } else {
+            eventsToConsider.sortedWith(compareByDescending<CapsuleEvent> { it.priority }.thenBy { it.id })
+        }
         
         val isPanelVisible = _isNotificationPanelVisible.value
         val hideOnPanel = prefs?.getBoolean("hide_on_notification_panel", true) ?: true
@@ -216,8 +241,9 @@ object CapsuleStateManager {
 
         hideJob?.cancel()
 
+        val allowTwoPopups = prefs?.getBoolean("allow_two_popups", true) ?: true
         val main = sortedList[0]
-        val split = if (sortedList.size > 1) sortedList[1] else null
+        val split = if (allowTwoPopups && sortedList.size > 1) sortedList[1] else null
 
         val currentMode = _uiState.value.displayMode
         val targetMode = when {

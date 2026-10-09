@@ -100,6 +100,8 @@ sealed interface CapsuleEvent {
         val title: String,
         val text: String,
         val appIcon: Bitmap? = null,
+        val largeImage: Bitmap? = null,
+        val smallIcon: Bitmap? = null,
         override val priority: Int = 600,
         override val durationMs: Long = 5000
     ) : CapsuleEvent

@@ -9,6 +9,9 @@ class CapsuleAccessibilityService : AccessibilityService() {
 
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: ""
+            if (packageName.isNotEmpty() && packageName != "com.android.systemui" && packageName != this.packageName) {
+                com.example.capsulebar.data.CapsuleStateManager.currentForegroundPackage = packageName
+            }
             
             val settings = com.example.capsulebar.data.CapsuleSettings(this)
             if (settings.hideOnNotificationPanel) {
@@ -49,6 +52,13 @@ class CapsuleAccessibilityService : AccessibilityService() {
         fun lockDeviceScreen(): Boolean {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                 return instance?.performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN) ?: false
+            }
+            return false
+        }
+
+        fun takeScreenshot(): Boolean {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                return instance?.performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT) ?: false
             }
             return false
         }

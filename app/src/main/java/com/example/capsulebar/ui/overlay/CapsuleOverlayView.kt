@@ -138,7 +138,18 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     var useAppColors by remember { mutableStateOf(settings.useAppColors) }
     var maxPopupWidthPercent by remember { mutableStateOf(settings.maxPopupWidthPercent) }
     var quickAnimations by remember { mutableStateOf(settings.quickAnimations) }
+    var premiumAnimations by remember { mutableStateOf(settings.premiumAnimations) }
     var splitPosition by remember { mutableStateOf(settings.splitPosition) } // "Left" or "Right"
+    var showAsNotch by remember { mutableStateOf(settings.showAsNotch) }
+    var addBackground by remember { mutableStateOf(settings.addBackground) }
+    var showImages by remember { mutableStateOf(settings.showImages) }
+    var maxTextLines by remember { mutableStateOf(settings.maxTextLines) }
+    var showMusicVisualizer by remember { mutableStateOf(settings.showMusicVisualizer) }
+    var useAndroidMusicControls by remember { mutableStateOf(settings.useAndroidMusicControls) }
+    var iconOption by remember { mutableStateOf(settings.iconOption) }
+    var sendReplies by remember { mutableStateOf(settings.sendReplies) }
+    var showAlways by remember { mutableStateOf(settings.showAlways) }
+    var quickAccessApps by remember { mutableStateOf(settings.quickAccessApps) }
 
     DisposableEffect(settings) {
         val prefs = context.getSharedPreferences("capsule_settings", Context.MODE_PRIVATE)
@@ -159,7 +170,18 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 "use_app_colors" -> useAppColors = settings.useAppColors
                 "max_popup_width_percent" -> maxPopupWidthPercent = settings.maxPopupWidthPercent
                 "quick_animations" -> quickAnimations = settings.quickAnimations
+                "premium_animations" -> premiumAnimations = settings.premiumAnimations
                 "split_position" -> splitPosition = settings.splitPosition
+                "show_as_notch" -> showAsNotch = settings.showAsNotch
+                "add_background" -> addBackground = settings.addBackground
+                "show_images" -> showImages = settings.showImages
+                "max_text_lines" -> maxTextLines = settings.maxTextLines
+                "show_music_visualizer" -> showMusicVisualizer = settings.showMusicVisualizer
+                "use_android_music_controls" -> useAndroidMusicControls = settings.useAndroidMusicControls
+                "icon_option" -> iconOption = settings.iconOption
+                "send_replies" -> sendReplies = settings.sendReplies
+                "show_always" -> showAlways = settings.showAlways
+                "quick_access_apps" -> quickAccessApps = settings.quickAccessApps
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -180,33 +202,31 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         return
     }
 
-    if (uiState.isHidden) {
-        return
+    val density = LocalDensity.current.density
+    val screenWidthFloatDp = LocalConfiguration.current.screenWidthDp.toFloat()
+
+    // ── EXACT CAMERA CUTOUT ANCHOR COORDINATES ──
+    val baseCameraCenterXDp = when (cameraPosition) {
+        "Left"  -> (cameraWidthDp / 2f + 16f)
+        "Right" -> (screenWidthFloatDp - (cameraWidthDp / 2f + 16f))
+        else    -> screenWidthFloatDp / 2f
     }
+    val cameraCenterXDp = baseCameraCenterXDp + (xOffset / density)
+    val topOffsetDp = if (showAsNotch) 0f else (yOffset / density)
 
-    // Read screen width for responsive expanded size
-    val configuration = LocalConfiguration.current
-    val screenWidthDp = configuration.screenWidthDp
-
-    // ── SPRING PHYSICS ─────────────────────────────────────────────────────────
-    // iOS Dynamic Island uses an underdamped spring (dampingRatio < 1) for the
-    // characteristic "overshoot and settle" bounce. StiffnessMediumLow gives the
-    // right speed: not too snappy, not sluggish.
-    val springSpec = remember(quickAnimations) {
+    val springSpec = remember(quickAnimations, premiumAnimations) {
         spring<Float>(
-            dampingRatio = if (quickAnimations) 0.46f else 0.38f,
-            stiffness = if (quickAnimations) 700f else 450f
+            dampingRatio = if (quickAnimations) 0.52f else if (premiumAnimations) 0.42f else 0.50f,
+            stiffness = if (quickAnimations) 650f else if (premiumAnimations) 380f else 480f
         )
     }
 
-    // ── IDLE STATE ─────────────────────────────────────────────────────────────
-    // When no event is active the capsule rests as a minimal black pill that just
-    // covers the camera hardware — exactly like the Dynamic Island at rest.
+    // ── IDLE / RESTING STATE (PUNCH HOLE CIRCLE) ──
     val isIdleState = uiState.mainEvent == null
-    val idlePillWidthDp = (cameraWidthDp + 24).toFloat()
+    val idlePunchHoleWidth = (cameraWidthDp + 6f).coerceAtLeast(heightDp.toFloat())
+    val activeCollapsedWidth = widthDp.coerceAtLeast(heightDp * 2).toFloat()
+    val expandedWidthDp = (screenWidthFloatDp * 0.94f * (maxPopupWidthPercent / 100f)).coerceAtLeast(280f)
 
-    // ── EXPANDED DIMENSIONS ────────────────────────────────────────────────────
-    val expandedWidthDp = (screenWidthDp * 0.94f * (maxPopupWidthPercent / 100f)).coerceAtLeast(280f)
     val expandedHeightDp = when (val ev = uiState.mainEvent) {
         is CapsuleEvent.Music         -> 260f
         is CapsuleEvent.Call          -> 230f
@@ -231,12 +251,12 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         else                          -> 210f
     }
 
-    // Width: idle pill ──spring──► compact pill ──spring──► expanded card
+    // Target width: punch-hole circle -> expands symmetrically out to collapsed width -> card
     val leftWidthTarget = when (uiState.displayMode) {
-        DisplayMode.COLLAPSED -> if (isIdleState) idlePillWidthDp else widthDp.coerceAtLeast(heightDp * 2).toFloat()
+        DisplayMode.COLLAPSED -> if (isIdleState) idlePunchHoleWidth else activeCollapsedWidth
         DisplayMode.EXPANDED  -> expandedWidthDp
-        DisplayMode.SPLIT     -> widthDp.coerceAtLeast(heightDp * 2).toFloat()
-        DisplayMode.HIDDEN    -> idlePillWidthDp
+        DisplayMode.SPLIT     -> activeCollapsedWidth
+        DisplayMode.HIDDEN    -> idlePunchHoleWidth
     }
     val leftHeightTarget = when (uiState.displayMode) {
         DisplayMode.COLLAPSED -> heightDp.toFloat()
@@ -244,7 +264,6 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         DisplayMode.SPLIT     -> heightDp.toFloat()
         DisplayMode.HIDDEN    -> heightDp.toFloat()
     }
-    // Compact = always fully-rounded pill; Expanded = fixed 28dp card corner (iOS standard)
     val leftRadiusTarget = when (uiState.displayMode) {
         DisplayMode.COLLAPSED -> (heightDp.toFloat() / 2f)
         DisplayMode.EXPANDED  -> 28f
@@ -252,15 +271,19 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         DisplayMode.HIDDEN    -> (heightDp.toFloat() / 2f)
     }
 
-    val leftWidth  by animateFloatAsState(targetValue = leftWidthTarget,  animationSpec = springSpec, label = "leftWidth")
+    val leftWidth  by animateFloatAsState(
+        targetValue = if (uiState.isHidden && !showAlways) idlePunchHoleWidth else leftWidthTarget,
+        animationSpec = springSpec,
+        label = "leftWidth"
+    )
     val leftHeight by animateFloatAsState(targetValue = leftHeightTarget, animationSpec = springSpec, label = "leftHeight")
     val leftRadius by animateFloatAsState(targetValue = leftRadiusTarget, animationSpec = springSpec, label = "leftRadius")
 
-    // ── ENTRANCE SCALE ANIMATION ───────────────────────────────────────────────
-    val enterScale by animateFloatAsState(
-        targetValue = if (uiState.isHidden) 0f else 1f,
-        animationSpec = spring(dampingRatio = 0.38f, stiffness = Spring.StiffnessMediumLow),
-        label = "enterScale"
+    val isVisible = !uiState.isHidden || showAlways
+    val capsuleAlpha by animateFloatAsState(
+        targetValue = if (isVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 150),
+        label = "capsuleAlpha"
     )
 
     var scaleTarget by remember { mutableStateOf(1f) }
@@ -280,22 +303,34 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         label = "capsuleScale"
     )
 
-    // 2. Middle Spacer (Only shows in Split mode)
-    val spacerWidthTarget = if (uiState.displayMode == DisplayMode.SPLIT) {
-        (cameraWidthDp + 16).toFloat()
+    // Split circle animation
+    val isSplit = uiState.displayMode == DisplayMode.SPLIT && uiState.splitEvent != null
+    val splitTargetSize = if (isSplit) heightDp.toFloat() else 0f
+    val splitSize by animateFloatAsState(targetValue = splitTargetSize, animationSpec = springSpec, label = "splitSize")
+    val splitGap = 10f
+
+    // ── ANCHOR COMPUTATIONS ──
+    // The main capsule is ALWAYS anchored right around cameraCenterXDp.
+    // As leftWidth grows from idlePunchHoleWidth to activeCollapsedWidth,
+    // it smoothly expands outwards equally to the left and to the right!
+    val pillLeftDp = if (uiState.displayMode == DisplayMode.EXPANDED) {
+        ((screenWidthFloatDp - leftWidth) / 2f).coerceAtLeast(0f)
     } else {
-        0f
+        (cameraCenterXDp - (leftWidth / 2f)).coerceAtLeast(0f)
     }
-    val spacerWidth by animateFloatAsState(targetValue = spacerWidthTarget, animationSpec = springSpec, label = "spacerWidth")
 
-    // 3. Right Bubble Dimensions (Split Event)
-    val rightWidthTarget = if (uiState.displayMode == DisplayMode.SPLIT) heightDp.toFloat() else 0f
-    val rightHeightTarget = if (uiState.displayMode == DisplayMode.SPLIT) heightDp.toFloat() else 0f
-    val rightRadiusTarget = if (uiState.displayMode == DisplayMode.SPLIT) (heightDp.toFloat() / 2f) else 0f
+    // Secondary split circle appears to the side WITHOUT shifting the main capsule away from the camera!
+    val splitLeftDp = if (splitPosition == "Right") {
+        cameraCenterXDp + (leftWidth / 2f) + splitGap
+    } else {
+        cameraCenterXDp - (leftWidth / 2f) - splitGap - splitSize
+    }
 
-    val rightWidth by animateFloatAsState(targetValue = rightWidthTarget, animationSpec = springSpec, label = "rightWidth")
-    val rightHeight by animateFloatAsState(targetValue = rightHeightTarget, animationSpec = springSpec, label = "rightHeight")
-    val rightRadius by animateFloatAsState(targetValue = rightRadiusTarget, animationSpec = springSpec, label = "rightRadius")
+    val pillShape = if (showAsNotch && uiState.displayMode != DisplayMode.EXPANDED) {
+        RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = leftRadius.dp, bottomEnd = leftRadius.dp)
+    } else {
+        RoundedCornerShape(leftRadius.dp)
+    }
 
     val scope = rememberCoroutineScope()
     var cutLineStart by remember { mutableStateOf<Offset?>(null) }
@@ -304,17 +339,55 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     var showCutHint by remember { mutableStateOf(false) }
     var hintJob by remember { mutableStateOf<Job?>(null) }
 
-    @Composable
-    fun MainPill() {
+    if (!isVisible && capsuleAlpha == 0f) {
+        return
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    change.consume()
+                    if (dragAmount > 15f) {
+                        com.example.capsulebar.service.CapsuleAccessibilityService.expandNotificationShade()
+                    }
+                }
+            }
+    ) {
+        // ── SPLIT CIRCLE (DOUBLE CAPSULE) ──
+        if (splitSize > 0.5f && uiState.splitEvent != null) {
+            Box(
+                modifier = Modifier
+                    .offset(x = splitLeftDp.dp, y = topOffsetDp.dp)
+                    .size(splitSize.dp)
+                    .graphicsLayer {
+                        alpha = capsuleAlpha
+                    }
+                    .clip(CircleShape)
+                    .background(getCapsuleColor(uiState.splitEvent, defaultColor, autoColor, useAppColors, context))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        CapsuleStateManager.toggleExpanded()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                SplitContent(event = uiState.splitEvent!!)
+            }
+        }
+
+        // ── MAIN PILL ──
         Box(
             modifier = Modifier
+                .offset(x = pillLeftDp.dp, y = topOffsetDp.dp)
                 .width(leftWidth.dp)
                 .height(leftHeight.dp)
                 .graphicsLayer {
-                    scaleX = enterScale * capsuleScale
-                    scaleY = enterScale * capsuleScale
+                    alpha = capsuleAlpha
+                    scaleX = capsuleScale
+                    scaleY = capsuleScale
                 }
-                .clip(RoundedCornerShape(leftRadius.dp))
+                .clip(pillShape)
                 .background(
                     if (uiState.displayMode == DisplayMode.EXPANDED) {
                         Color(0xEE0B0B0B)
@@ -324,7 +397,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 )
                 .then(
                     if (uiState.displayMode == DisplayMode.EXPANDED) {
-                        Modifier.border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(leftRadius.dp))
+                        Modifier.border(1.dp, Color(0x22FFFFFF), pillShape)
                     } else {
                         Modifier
                     }
@@ -389,12 +462,22 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 .padding(horizontal = if (uiState.displayMode == DisplayMode.EXPANDED) 16.dp else 8.dp),
             contentAlignment = Alignment.Center
         ) {
-            uiState.mainEvent?.let { event ->
-                MainContent(
-                    event = event,
-                    displayMode = uiState.displayMode,
-                    showCutHint = showCutHint
-                )
+            if (uiState.mainEvent != null) {
+                // Content blooms smoothly once width has expanded past the camera punch hole
+                val showContent = leftWidth > (cameraWidthDp + 8f) || uiState.displayMode == DisplayMode.EXPANDED
+                AnimatedVisibility(
+                    visible = showContent,
+                    enter = fadeIn(animationSpec = tween(140)),
+                    exit = fadeOut(animationSpec = tween(80))
+                ) {
+                    MainContent(
+                        event = uiState.mainEvent!!,
+                        displayMode = uiState.displayMode,
+                        showCutHint = showCutHint
+                    )
+                }
+            } else if (quickAccessApps && uiState.displayMode == DisplayMode.EXPANDED) {
+                QuickAccessAppsBar(context = context, haptic = haptic)
             }
 
             // Draw glowing slash/cut line during active drag
@@ -408,76 +491,6 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                         cap = StrokeCap.Round
                     )
                 }
-            }
-        }
-    }
-
-    @Composable
-    fun SplitCircle() {
-        if (rightWidth > 0f) {
-            Box(
-                modifier = Modifier
-                    .width(rightWidth.dp)
-                    .height(rightHeight.dp)
-                    .clip(RoundedCornerShape(rightRadius.dp))
-                    .background(getCapsuleColor(uiState.splitEvent, defaultColor, autoColor, useAppColors, context))
-                    .clickable {
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        CapsuleStateManager.toggleExpanded()
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                uiState.splitEvent?.let { event ->
-                    SplitContent(event = event)
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun SplitSpacer() {
-        if (spacerWidth > 0f) {
-            Spacer(modifier = Modifier.width(spacerWidth.dp))
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    change.consume()
-                    if (dragAmount > 15f) {
-                        com.example.capsulebar.service.CapsuleAccessibilityService.expandNotificationShade()
-                    }
-                }
-            },
-        contentAlignment = Alignment.TopCenter
-    ) {
-
-        if (splitPosition == "Left") {
-            Row(
-                modifier = Modifier
-                    .wrapContentSize()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SplitCircle()
-                SplitSpacer()
-                MainPill()
-            }
-        } else {
-            Row(
-                modifier = Modifier
-                    .wrapContentSize()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                MainPill()
-                SplitSpacer()
-                SplitCircle()
             }
         }
     }
@@ -1157,7 +1170,16 @@ private fun CollapsedBubbleContent(
                         )
                     }
                     is CapsuleEvent.Music -> {
-                        MusicVisualizer(isPlaying = event.isPlaying)
+                        if (settings.showMusicVisualizer) {
+                            MusicVisualizer(isPlaying = event.isPlaying)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Equalizer,
+                                contentDescription = null,
+                                tint = MaterialYouLavender,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                     is CapsuleEvent.Bluetooth -> {
                         Text(
@@ -1660,93 +1682,108 @@ fun CalibrationScreen(
     cameraPosition: String,
     cameraWidthDp: Int
 ) {
+    val configuration = LocalConfiguration.current
+    val screenWidthFloatDp = configuration.screenWidthDp.toFloat()
+    val density = LocalDensity.current.density
+
+    val baseCameraCenterXDp = when (cameraPosition) {
+        "Left"  -> (cameraWidthDp / 2f + 16f)
+        "Right" -> (screenWidthFloatDp - (cameraWidthDp / 2f + 16f))
+        else    -> screenWidthFloatDp / 2f
+    }
+    val cameraCenterXDp = baseCameraCenterXDp + (settings.xOffset / density)
+    val topOffsetDp = if (settings.showAsNotch) 0f else (settings.yOffset / density)
+
+    val pillLeftDp = (cameraCenterXDp - (widthDp / 2f)).coerceAtLeast(0f)
+    val splitGap = 10f
+    val splitLeftDp = if (settings.splitPosition == "Right") {
+        cameraCenterXDp + (widthDp / 2f) + splitGap
+    } else {
+        cameraCenterXDp - (widthDp / 2f) - splitGap - heightDp.toFloat()
+    }
+
+    val pillShape = if (settings.showAsNotch) {
+        RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = (heightDp / 2f).dp, bottomEnd = (heightDp / 2f).dp)
+    } else {
+        RoundedCornerShape(cornerRadiusDp.dp)
+    }
+
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(8.dp),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.fillMaxSize()
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        // Main Capsule outline
+        Box(
+            modifier = Modifier
+                .offset(x = pillLeftDp.dp, y = topOffsetDp.dp)
+                .width(widthDp.dp)
+                .height(heightDp.dp)
+                .clip(pillShape)
+                .background(Color.Black.copy(alpha = 0.88f))
+                .border(2.dp, Color(0xFF00D2FF), pillShape),
+            contentAlignment = Alignment.Center
         ) {
-            // Main Capsule outline
+            Text(
+                text = "MAIN CAPSULE",
+                color = Color(0xFF00D2FF),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Camera Punch Hole alignment marker (Red circle with white center dot)
+        Box(
+            modifier = Modifier
+                .offset(
+                    x = (cameraCenterXDp - (cameraWidthDp / 2f)).dp,
+                    y = (topOffsetDp + (heightDp - cameraWidthDp) / 2f).dp
+                )
+                .size(cameraWidthDp.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFFF3B30).copy(alpha = 0.45f))
+                .border(2.dp, Color(0xFFFF3B30), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
             Box(
                 modifier = Modifier
-                    .width(widthDp.dp)
-                    .height(heightDp.dp)
-                    .clip(RoundedCornerShape(cornerRadiusDp.dp))
-                    .background(Color.Black.copy(alpha = 0.85f))
-                    .border(2.dp, Color(0xFF00D2FF), RoundedCornerShape(cornerRadiusDp.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                // Draw camera circle inside
-                Box(
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    val alignment = when (cameraPosition) {
-                        "Left" -> Alignment.CenterStart
-                        "Right" -> Alignment.CenterEnd
-                        else -> Alignment.Center
-                    }
-                    val startPadding = if (cameraPosition == "Left") 12.dp else 0.dp
-                    val endPadding = if (cameraPosition == "Right") 12.dp else 0.dp
-                    
-                    Box(
-                        modifier = Modifier
-                            .align(alignment)
-                            .padding(start = startPadding, end = endPadding)
-                            .size(cameraWidthDp.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFFF3B30).copy(alpha = 0.4f))
-                            .border(1.5.dp, Color(0xFFFF3B30), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Tiny dot inside camera
-                        Box(
-                            modifier = Modifier
-                                .size(4.dp)
-                                .background(Color.White, CircleShape)
-                        )
-                    }
-                }
+                    .size(5.dp)
+                    .background(Color.White, CircleShape)
+            )
+        }
 
-                Text(
-                    text = "ALIGN CAPSULE & CAMERA",
-                    color = Color(0xFF00D2FF),
-                    fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold
+        // Side Split Capsule preview outline
+        Box(
+            modifier = Modifier
+                .offset(x = splitLeftDp.dp, y = topOffsetDp.dp)
+                .size(heightDp.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.88f))
+                .border(1.5.dp, Color(0xFFFF9800), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "SPLIT",
+                color = Color(0xFFFF9800),
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        // Guide text below capsule
+        Box(
+            modifier = Modifier
+                .offset(
+                    x = (cameraCenterXDp - 110f).coerceAtLeast(0f).dp,
+                    y = (topOffsetDp + heightDp + 8f).dp
                 )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Calibration visual aid bars (ticks below the capsule)
-            Row(
-                modifier = Modifier
-                    .width(widthDp.dp)
-                    .height(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                repeat(7) { index ->
-                    val color = if (
-                        (index == 0 && cameraPosition == "Left") ||
-                        (index == 3 && cameraPosition == "Center") ||
-                        (index == 6 && cameraPosition == "Right")
-                    ) {
-                        Color(0xFFFF3B30) // Match active camera position
-                    } else {
-                        Color(0xFF00D2FF).copy(alpha = 0.5f)
-                    }
-                    Box(
-                        modifier = Modifier
-                            .width(1.5.dp)
-                            .height(if (index % 3 == 0) 8.dp else 5.dp)
-                            .background(color)
-                    )
-                }
-            }
+                .width(220.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "▲ ALIGN RED RING OVER CAMERA ▲",
+                color = Color(0xFF00D2FF),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -1839,6 +1876,8 @@ private fun safeStartActivity(context: Context, intent: Intent) {
 
 @Composable
 private fun MusicExpandedCard(event: CapsuleEvent.Music) {
+    val context = LocalContext.current
+    val settings = remember { CapsuleSettings(context) }
     var currentPosition by remember(event.id, event.position) { mutableStateOf(event.position) }
     LaunchedEffect(event.isPlaying, event.position) {
         if (event.isPlaying) {
@@ -1852,7 +1891,7 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (event.albumArt != null) {
+        if (settings.showImages && event.albumArt != null) {
             Image(
                 bitmap = event.albumArt.asImageBitmap(),
                 contentDescription = null,
@@ -1860,6 +1899,7 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
                     .size(48.dp)
                     .clip(RoundedCornerShape(12.dp))
             )
+            Spacer(Modifier.width(12.dp))
         } else {
             Box(
                 modifier = Modifier
@@ -1870,8 +1910,8 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
             ) {
                 Icon(Icons.Rounded.MusicNote, null, tint = Color.Black)
             }
+            Spacer(Modifier.width(12.dp))
         }
-        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = event.title,
@@ -1899,32 +1939,34 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
         height = 6.dp,
         showThumb = true
     )
-    Spacer(Modifier.height(10.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = { CapsuleStateManager.sendMediaAction("previous") }) {
-            Icon(Icons.Rounded.SkipPrevious, null, tint = Color.White)
-        }
-        IconButton(
-            onClick = {
-                val nextAction = if (event.isPlaying) "pause" else "play"
-                CapsuleStateManager.sendMediaAction(nextAction)
-            },
-            modifier = Modifier
-                .size(38.dp)
-                .background(Color(0xFF6A1B9A), CircleShape)
+    if (settings.useAndroidMusicControls) {
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = if (event.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                contentDescription = null,
-                tint = Color.Black
-            )
-        }
-        IconButton(onClick = { CapsuleStateManager.sendMediaAction("next") }) {
-            Icon(Icons.Rounded.SkipNext, null, tint = Color.White)
+            IconButton(onClick = { CapsuleStateManager.sendMediaAction("previous") }) {
+                Icon(Icons.Rounded.SkipPrevious, null, tint = Color.White)
+            }
+            IconButton(
+                onClick = {
+                    val nextAction = if (event.isPlaying) "pause" else "play"
+                    CapsuleStateManager.sendMediaAction(nextAction)
+                },
+                modifier = Modifier
+                    .size(38.dp)
+                    .background(Color(0xFF6A1B9A), CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (event.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.Black
+                )
+            }
+            IconButton(onClick = { CapsuleStateManager.sendMediaAction("next") }) {
+                Icon(Icons.Rounded.SkipNext, null, tint = Color.White)
+            }
         }
     }
 }
@@ -2351,8 +2393,18 @@ private fun ProgressExpandedCard(event: CapsuleEvent.Progress) {
 
 @Composable
 private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
+    val context = LocalContext.current
+    val settings = remember { CapsuleSettings(context) }
     var replyText by remember { mutableStateOf("") }
     val haptic = LocalHapticFeedback.current
+
+    val iconBitmap = when (settings.iconOption) {
+        0 -> event.largeImage ?: event.appIcon
+        1 -> event.appIcon
+        2 -> event.smallIcon ?: event.appIcon
+        else -> event.appIcon
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -2361,9 +2413,9 @@ private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (event.appIcon != null) {
+            if (iconBitmap != null) {
                 Image(
-                    bitmap = event.appIcon.asImageBitmap(),
+                    bitmap = iconBitmap.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier
                         .size(40.dp)
@@ -2401,29 +2453,44 @@ private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
                     text = event.text,
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 12.sp,
-                    maxLines = 1,
+                    maxLines = settings.maxTextLines.coerceAtLeast(1),
                     overflow = TextOverflow.Ellipsis
                 )
             }
         }
+
+        // Show image if enabled
+        if (settings.showImages && event.largeImage != null) {
+            Image(
+                bitmap = event.largeImage.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(90.dp)
+                    .clip(RoundedCornerShape(12.dp))
+            )
+        }
         
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            val chips = listOf("OK", "On my way", "Yes", "No", "Thanks")
-            chips.forEach { chip ->
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0x1EFFFFFF))
-                        .clickable {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                            replyText = chip
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(chip, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+        if (settings.sendReplies) {
+            val chipBg = if (settings.addBackground) Color(0x33FFFFFF) else Color(0x18FFFFFF)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val chips = listOf("OK", "On my way", "Yes", "No", "Thanks")
+                chips.forEach { chip ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(chipBg)
+                            .clickable {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                                replyText = chip
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(chip, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    }
                 }
             }
         }
@@ -3702,6 +3769,111 @@ private fun LockStateExpandedCard(event: CapsuleEvent.LockState, context: Contex
                 Icon(Icons.Rounded.Settings, null, tint = Color.White, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Security settings", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickAccessAppsBar(
+    context: Context,
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "Quick Shortcuts",
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Flashlight
+            IconButton(
+                onClick = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    if (FlashlightController.isFlashlightOn) {
+                        FlashlightController.turnOff(context)
+                    } else {
+                        FlashlightController.turnOn(context, 1.0f)
+                    }
+                },
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Color(0x22FFFFFF), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.FlashlightOn,
+                    contentDescription = "Flashlight",
+                    tint = if (FlashlightController.isFlashlightOn) Color(0xFFFFD54F) else Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            // Screenshot via Accessibility
+            IconButton(
+                onClick = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    com.example.capsulebar.service.CapsuleAccessibilityService.takeScreenshot()
+                    CapsuleStateManager.setDisplayMode(DisplayMode.COLLAPSED)
+                },
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Color(0x22FFFFFF), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ContentCut,
+                    contentDescription = "Screenshot",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            // Lock Screen
+            IconButton(
+                onClick = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    com.example.capsulebar.service.CapsuleAccessibilityService.lockDeviceScreen()
+                    CapsuleStateManager.setDisplayMode(DisplayMode.COLLAPSED)
+                },
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Color(0x22FFFFFF), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Lock,
+                    contentDescription = "Lock Screen",
+                    tint = Color(0xFFE57373),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            // Settings
+            IconButton(
+                onClick = {
+                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                    safeStartActivity(context, Intent(android.provider.Settings.ACTION_SETTINGS))
+                    CapsuleStateManager.setDisplayMode(DisplayMode.COLLAPSED)
+                },
+                modifier = Modifier
+                    .size(44.dp)
+                    .background(Color(0x22FFFFFF), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = "Settings",
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp)
+                )
             }
         }
     }
