@@ -27,11 +27,14 @@ object CapsuleStateManager {
     private val _isRealVisualizerActive = MutableStateFlow(false)
     val isRealVisualizerActive: StateFlow<Boolean> = _isRealVisualizerActive.asStateFlow()
 
-    private val _visualizerAmplitudes = MutableStateFlow(listOf(0.3f, 0.3f, 0.3f))
+    private val _visualizerAmplitudes = MutableStateFlow(listOf(0.3f, 0.3f, 0.3f, 0.3f))
     val visualizerAmplitudes: StateFlow<List<Float>> = _visualizerAmplitudes.asStateFlow()
 
     private val _isNotificationPanelVisible = MutableStateFlow(false)
     val isNotificationPanelVisible: StateFlow<Boolean> = _isNotificationPanelVisible.asStateFlow()
+
+    private val _isInputFocused = MutableStateFlow(false)
+    val isInputFocused: StateFlow<Boolean> = _isInputFocused.asStateFlow()
 
     private val _themeMode = MutableStateFlow("dark")
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
@@ -44,9 +47,26 @@ object CapsuleStateManager {
 
     private var prefs: android.content.SharedPreferences? = null
     private var isManuallyHidden = false
+    private var preferredMainEventId: String? = null
     private var collapseJob: Job? = null
     private var hideJob: Job? = null
     var currentForegroundPackage: String? = null
+
+    fun setInputFocused(focused: Boolean) {
+        if (_isInputFocused.value != focused) {
+            _isInputFocused.value = focused
+            if (focused) {
+                keepExpandedAlive()
+            }
+        }
+    }
+
+    fun updateForegroundPackage(packageName: String) {
+        if (currentForegroundPackage != packageName) {
+            currentForegroundPackage = packageName
+            recalculateState()
+        }
+    }
 
     fun initialize(context: android.content.Context) {
         prefs = context.applicationContext.getSharedPreferences("capsule_settings", android.content.Context.MODE_PRIVATE)
@@ -109,32 +129,394 @@ object CapsuleStateManager {
     var onMediaActionListener: ((String) -> Unit)? = null
 
     fun sendMediaAction(action: String) {
+        keepExpandedAlive()
+        applyOptimisticMusicUpdate(action)
         onMediaActionListener?.invoke(action)
+    }
+
+    @Synchronized
+    private fun applyOptimisticMusicUpdate(action: String) {
+        val currentMusic = (activeEvents["music"] as? CapsuleEvent.Music)
+            ?: (_uiState.value.mainEvent as? CapsuleEvent.Music)
+            ?: return
+
+        val updated = when {
+            action == "play" -> currentMusic.copy(isPlaying = true)
+            action == "pause" -> currentMusic.copy(isPlaying = false)
+            action == "rewind" || action == "reverse" -> {
+                val target = (currentMusic.position - 10_000L).coerceAtLeast(0L)
+                currentMusic.copy(position = target)
+            }
+            action == "fast_forward" || action == "forward" -> {
+                val cap = if (currentMusic.duration > 0L) currentMusic.duration else (currentMusic.position + 10_000L)
+                val target = (currentMusic.position + 10_000L).coerceAtMost(cap)
+                currentMusic.copy(position = target)
+            }
+            action.startsWith("seek:") -> {
+                val pos = action.removePrefix("seek:").toLongOrNull() ?: currentMusic.position
+                currentMusic.copy(position = pos.coerceAtLeast(0L))
+            }
+            action == "toggle_like" || action == "like" || action == "unlike" -> {
+                val nextLiked = !currentMusic.isLiked
+                currentMusic.copy(
+                    isLiked = nextLiked,
+                    isDisliked = if (nextLiked) false else currentMusic.isDisliked
+                )
+            }
+            action == "toggle_dislike" || action == "dislike" -> {
+                val nextDisliked = !currentMusic.isDisliked
+                currentMusic.copy(
+                    isDisliked = nextDisliked,
+                    isLiked = if (nextDisliked) false else currentMusic.isLiked
+                )
+            }
+            action == "toggle_shuffle" || action == "shuffle" -> {
+                currentMusic.copy(isShuffleEnabled = !currentMusic.isShuffleEnabled)
+            }
+            action == "toggle_repeat" || action == "repeat" -> {
+                currentMusic.copy(isRepeatEnabled = !currentMusic.isRepeatEnabled)
+            }
+            action == "cycle_speed" -> {
+                val speeds = listOf(1.0f, 1.25f, 1.5f, 2.0f, 0.75f)
+                val idx = speeds.indexOfFirst { kotlin.math.abs(it - currentMusic.playbackSpeed) < 0.05f }
+                val nextSpeed = speeds[(if (idx >= 0) idx + 1 else 1) % speeds.size]
+                currentMusic.copy(playbackSpeed = nextSpeed)
+            }
+            else -> null
+        }
+
+        if (updated != null) {
+            activeEvents[updated.id] = updated
+            recalculateState()
+        }
     }
 
     private val activeEvents = mutableMapOf<String, CapsuleEvent>()
     private val autoDismissJobs = mutableMapOf<String, Job>()
+    private var clockTickerJob: Job? = null
+    private var lastLapStopwatchSec: Long = 0L
 
     @Synchronized
     fun postEvent(event: CapsuleEvent) {
         autoDismissJobs[event.id]?.cancel()
 
-        activeEvents[event.id] = event
+        val nowMs = System.currentTimeMillis()
+        val normalizedEvent = when (event) {
+            is CapsuleEvent.Timer -> {
+                val prev = activeEvents[event.id] as? CapsuleEvent.Timer
+                val resolvedTotal = when {
+                    event.totalSeconds > event.remainingSeconds -> event.totalSeconds
+                    prev != null && prev.totalSeconds >= event.remainingSeconds -> prev.totalSeconds
+                    else -> event.remainingSeconds.coerceAtLeast(1L)
+                }
+                val resolvedEndMs = if (event.isRunning && event.remainingSeconds > 0L) {
+                    nowMs + event.remainingSeconds * 1000L
+                } else {
+                    0L
+                }
+                event.copy(
+                    totalSeconds = resolvedTotal,
+                    targetEndElapsedMs = resolvedEndMs
+                )
+            }
+            is CapsuleEvent.Stopwatch -> {
+                val prev = activeEvents[event.id] as? CapsuleEvent.Stopwatch
+                val preservedLaps = if (event.laps.isNotEmpty()) {
+                    event.laps
+                } else if (event.elapsedSeconds == 0L && !event.isRunning) {
+                    lastLapStopwatchSec = 0L
+                    emptyList()
+                } else {
+                    prev?.laps ?: emptyList()
+                }
+                val resolvedBaseMs = if (event.isRunning) {
+                    nowMs - (event.elapsedSeconds * 1000L)
+                } else {
+                    0L
+                }
+                event.copy(
+                    laps = preservedLaps,
+                    baseStartElapsedMs = resolvedBaseMs
+                )
+            }
+            else -> event
+        }
 
-        val duration = if (event.durationMs > 0) {
+        activeEvents[normalizedEvent.id] = normalizedEvent
+
+        val duration = if (normalizedEvent.durationMs > 0) {
             getCompactDurationMs()
         } else {
             0L
         }
 
         if (duration > 0) {
-            autoDismissJobs[event.id] = scope.launch {
+            autoDismissJobs[normalizedEvent.id] = scope.launch {
                 delay(duration)
-                removeEvent(event.id)
+                removeEvent(normalizedEvent.id)
             }
         }
 
+        ensureClockTickerState()
         recalculateState()
+    }
+
+    @Synchronized
+    private fun ensureClockTickerState() {
+        val hasRunningClock = activeEvents.values.any {
+            (it is CapsuleEvent.Timer && it.isRunning && it.remainingSeconds > 0L) ||
+            (it is CapsuleEvent.Stopwatch && it.isRunning)
+        }
+        if (hasRunningClock && (clockTickerJob == null || clockTickerJob?.isActive != true)) {
+            clockTickerJob = scope.launch {
+                while (isActive) {
+                    delay(1000L)
+                    tickRunningClocks()
+                }
+            }
+        } else if (!hasRunningClock) {
+            clockTickerJob?.cancel()
+            clockTickerJob = null
+        }
+    }
+
+    @Synchronized
+    private fun tickRunningClocks() {
+        val nowMs = System.currentTimeMillis()
+        var changed = false
+        val entries = activeEvents.entries.toList()
+        for ((key, ev) in entries) {
+            when (ev) {
+                is CapsuleEvent.Timer -> {
+                    if (ev.isRunning && ev.remainingSeconds > 0L) {
+                        val nextRem = if (ev.targetEndElapsedMs > 0L) {
+                            ((ev.targetEndElapsedMs - nowMs + 499L) / 1000L).coerceAtLeast(0L)
+                        } else {
+                            (ev.remainingSeconds - 1L).coerceAtLeast(0L)
+                        }
+                        if (nextRem == 0L) {
+                            activeEvents[key] = ev.copy(
+                                remainingSeconds = 0L,
+                                isRunning = false,
+                                isFiring = true,
+                                targetEndElapsedMs = 0L,
+                                priority = 940
+                            )
+                            try {
+                                com.example.capsulebar.service.HapticSoundManager.playExpand()
+                            } catch (_: Exception) {}
+                        } else {
+                            activeEvents[key] = ev.copy(remainingSeconds = nextRem)
+                        }
+                        changed = true
+                    }
+                }
+                is CapsuleEvent.Stopwatch -> {
+                    if (ev.isRunning) {
+                        val nextElapsed = if (ev.baseStartElapsedMs > 0L) {
+                            ((nowMs - ev.baseStartElapsedMs) / 1000L).coerceAtLeast(0L)
+                        } else {
+                            ev.elapsedSeconds + 1L
+                        }
+                        activeEvents[key] = ev.copy(elapsedSeconds = nextElapsed)
+                        changed = true
+                    }
+                }
+                else -> {}
+            }
+        }
+        if (changed) {
+            ensureClockTickerState()
+            recalculateState()
+        }
+    }
+
+    fun sendTimerAction(context: android.content.Context?, eventId: String, action: String) {
+        keepExpandedAlive()
+        val current = (activeEvents[eventId] as? CapsuleEvent.Timer)
+            ?: (activeEvents.values.firstOrNull { it is CapsuleEvent.Timer } as? CapsuleEvent.Timer)
+            ?: return
+        val id = current.id
+        val nowMs = System.currentTimeMillis()
+
+        when {
+            action == "toggle" || action == "pause" || action == "start" || action == "resume" -> {
+                val nextRunning = when (action) {
+                    "pause" -> false
+                    "start", "resume" -> true
+                    else -> !current.isRunning
+                }
+                val rem = if (current.remainingSeconds <= 0L && nextRunning) current.totalSeconds.coerceAtLeast(60L) else current.remainingSeconds
+                val triggered = com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(
+                    id,
+                    if (nextRunning) "start" else "pause"
+                )
+                postEvent(
+                    current.copy(
+                        remainingSeconds = rem,
+                        isRunning = nextRunning,
+                        isFiring = false,
+                        isSystemSynced = current.isSystemSynced || triggered,
+                        targetEndElapsedMs = if (nextRunning) nowMs + rem * 1000L else 0L,
+                        priority = 350
+                    )
+                )
+            }
+            action.startsWith("+") -> {
+                val addSec = action.removePrefix("+").removeSuffix("s").removeSuffix("m").let { raw ->
+                    if (action.endsWith("m")) (raw.toLongOrNull() ?: 1L) * 60L
+                    else raw.toLongOrNull() ?: 60L
+                }
+                val nextRem = current.remainingSeconds + addSec
+                val nextTotal = (current.totalSeconds + addSec).coerceAtLeast(nextRem)
+                val nextRunning = if (current.isFiring) true else current.isRunning
+                val triggered = if (addSec == 60L) {
+                    com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(id, "+1")
+                } else false
+                postEvent(
+                    current.copy(
+                        remainingSeconds = nextRem,
+                        totalSeconds = nextTotal,
+                        isRunning = nextRunning,
+                        isFiring = false,
+                        isSystemSynced = current.isSystemSynced || triggered,
+                        targetEndElapsedMs = if (nextRunning) nowMs + nextRem * 1000L else 0L,
+                        priority = 350
+                    )
+                )
+            }
+            action.startsWith("preset:") -> {
+                val presetSec = action.removePrefix("preset:").toLongOrNull() ?: 60L
+                val synced = if (context != null) {
+                    com.example.capsulebar.service.CapsuleNotificationListener.startSystemClockTimer(
+                        context = context,
+                        seconds = presetSec.toInt(),
+                        label = current.label.ifBlank { "Timer" }
+                    )
+                } else false
+                postEvent(
+                    current.copy(
+                        remainingSeconds = presetSec,
+                        totalSeconds = presetSec,
+                        isRunning = true,
+                        isFiring = false,
+                        isSystemSynced = current.isSystemSynced || synced,
+                        targetEndElapsedMs = nowMs + presetSec * 1000L,
+                        priority = 350
+                    )
+                )
+            }
+            action == "sync_system" -> {
+                if (context != null && current.remainingSeconds > 0L) {
+                    val synced = com.example.capsulebar.service.CapsuleNotificationListener.startSystemClockTimer(
+                        context = context,
+                        seconds = current.remainingSeconds.toInt(),
+                        label = current.label.ifBlank { "Timer" }
+                    )
+                    postEvent(current.copy(isSystemSynced = synced || current.isSystemSynced, isRunning = true))
+                }
+            }
+            action == "reset" -> {
+                com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(id, "reset")
+                val resetSec = current.totalSeconds.coerceAtLeast(60L)
+                postEvent(
+                    current.copy(
+                        remainingSeconds = resetSec,
+                        isRunning = false,
+                        isFiring = false,
+                        targetEndElapsedMs = 0L,
+                        priority = 350
+                    )
+                )
+            }
+            action == "stop" || action == "dismiss" -> {
+                com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(id, "stop")
+                com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(id)
+                removeEvent(id)
+            }
+            action == "open_clock" -> {
+                if (context != null) {
+                    com.example.capsulebar.service.CapsuleNotificationListener.openClockApp(
+                        context = context,
+                        eventId = id,
+                        packageName = current.packageName,
+                        isTimer = true
+                    )
+                    collapseToCompact()
+                }
+            }
+        }
+    }
+
+    fun sendStopwatchAction(context: android.content.Context?, eventId: String, action: String) {
+        keepExpandedAlive()
+        val current = (activeEvents[eventId] as? CapsuleEvent.Stopwatch)
+            ?: (activeEvents.values.firstOrNull { it is CapsuleEvent.Stopwatch } as? CapsuleEvent.Stopwatch)
+            ?: return
+        val id = current.id
+        val nowMs = System.currentTimeMillis()
+
+        when (action) {
+            "toggle", "pause", "start", "resume" -> {
+                val nextRunning = when (action) {
+                    "pause" -> false
+                    "start", "resume" -> true
+                    else -> !current.isRunning
+                }
+                val triggered = com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(
+                    id,
+                    if (nextRunning) "start" else "pause"
+                )
+                postEvent(
+                    current.copy(
+                        isRunning = nextRunning,
+                        isSystemSynced = current.isSystemSynced || triggered,
+                        baseStartElapsedMs = if (nextRunning) nowMs - (current.elapsedSeconds * 1000L) else 0L
+                    )
+                )
+            }
+            "lap" -> {
+                com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(id, "lap")
+                val totalSec = current.elapsedSeconds
+                val splitDelta = (totalSec - lastLapStopwatchSec).coerceAtLeast(0L)
+                lastLapStopwatchSec = totalSec
+                val lapNum = current.laps.size + 1
+                val totalFmt = "%02d:%02d".format((totalSec % 3600) / 60, totalSec % 60)
+                val deltaFmt = "+%02d:%02d".format((splitDelta % 3600) / 60, splitDelta % 60)
+                val newLapEntry = "L$lapNum  $deltaFmt  •  $totalFmt"
+                val updatedLaps = (listOf(newLapEntry) + current.laps).take(6)
+                postEvent(current.copy(laps = updatedLaps))
+            }
+            "reset" -> {
+                com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(id, "reset")
+                lastLapStopwatchSec = 0L
+                postEvent(
+                    current.copy(
+                        elapsedSeconds = 0L,
+                        isRunning = false,
+                        laps = emptyList(),
+                        baseStartElapsedMs = 0L
+                    )
+                )
+            }
+            "stop", "dismiss" -> {
+                com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(id, "reset")
+                com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(id)
+                lastLapStopwatchSec = 0L
+                removeEvent(id)
+            }
+            "open_clock" -> {
+                if (context != null) {
+                    com.example.capsulebar.service.CapsuleNotificationListener.openClockApp(
+                        context = context,
+                        eventId = id,
+                        packageName = current.packageName,
+                        isTimer = false
+                    )
+                    collapseToCompact()
+                }
+            }
+        }
     }
 
     @Synchronized
@@ -142,6 +524,10 @@ object CapsuleStateManager {
         autoDismissJobs[id]?.cancel()
         autoDismissJobs.remove(id)
         activeEvents.remove(id)
+        if (preferredMainEventId == id) {
+            preferredMainEventId = null
+        }
+        ensureClockTickerState()
         recalculateState()
     }
 
@@ -150,6 +536,8 @@ object CapsuleStateManager {
         autoDismissJobs.values.forEach { it.cancel() }
         autoDismissJobs.clear()
         activeEvents.clear()
+        preferredMainEventId = null
+        ensureClockTickerState()
         recalculateState()
     }
 
@@ -158,10 +546,47 @@ object CapsuleStateManager {
         return activeEvents.containsKey(id)
     }
 
+    /**
+     * Resets the auto-collapse countdown when the user is actively interacting
+     * with controls inside the expanded capsule.
+     */
+    fun keepExpandedAlive() {
+        if (_uiState.value.displayMode != DisplayMode.EXPANDED) return
+        collapseJob?.cancel()
+        val duration = getExpandedDurationMs()
+        if (duration > 0 && !_isInputFocused.value) {
+            collapseJob = scope.launch {
+                delay(duration)
+                val current = _uiState.value
+                if (current.displayMode == DisplayMode.EXPANDED && !_isInputFocused.value) {
+                    val newMode = if (current.splitEvent != null) DisplayMode.SPLIT else DisplayMode.COLLAPSED
+                    _uiState.value = current.copy(displayMode = newMode)
+                    com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                }
+            }
+        }
+    }
+
+    /**
+     * Swaps the secondary split event into the main capsule and expands/focuses it.
+     */
+    @Synchronized
+    fun swapMainAndSplit(expandAfterSwap: Boolean = true) {
+        val current = _uiState.value
+        val split = current.splitEvent ?: return
+        preferredMainEventId = split.id
+        recalculateState()
+        if (expandAfterSwap) {
+            setDisplayMode(DisplayMode.EXPANDED)
+        }
+    }
 
     fun setDisplayMode(mode: DisplayMode) {
         val prevMode = _uiState.value.displayMode
         collapseJob?.cancel()
+        if (mode != DisplayMode.EXPANDED) {
+            _isInputFocused.value = false
+        }
         _uiState.value = _uiState.value.copy(displayMode = mode, isHidden = mode == DisplayMode.HIDDEN)
 
         if (prevMode == DisplayMode.EXPANDED && (mode == DisplayMode.COLLAPSED || mode == DisplayMode.SPLIT || mode == DisplayMode.HIDDEN)) {
@@ -169,18 +594,7 @@ object CapsuleStateManager {
         }
         
         if (mode == DisplayMode.EXPANDED) {
-            val duration = getExpandedDurationMs()
-            if (duration > 0) {
-                collapseJob = scope.launch {
-                    delay(duration)
-                    val current = _uiState.value
-                    if (current.displayMode == DisplayMode.EXPANDED) {
-                        val newMode = if (current.splitEvent != null) DisplayMode.SPLIT else DisplayMode.COLLAPSED
-                        _uiState.value = current.copy(displayMode = newMode)
-                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
-                    }
-                }
-            }
+            keepExpandedAlive()
         }
     }
 
@@ -209,6 +623,7 @@ object CapsuleStateManager {
 
     fun hideTemporarily() {
         isManuallyHidden = true
+        _isInputFocused.value = false
         _uiState.value = _uiState.value.copy(isHidden = true, displayMode = DisplayMode.HIDDEN)
     }
 
@@ -236,10 +651,18 @@ object CapsuleStateManager {
         }
 
         val reverseOrder = prefs?.getBoolean("reverse_order", false) ?: false
-        val sortedList = if (reverseOrder) {
+        val baseSortedList = if (reverseOrder) {
             eventsToConsider.sortedWith(compareBy<CapsuleEvent> { it.priority }.thenByDescending { it.id })
         } else {
             eventsToConsider.sortedWith(compareByDescending<CapsuleEvent> { it.priority }.thenBy { it.id })
+        }
+
+        val preferredId = preferredMainEventId
+        val sortedList = if (preferredId != null && baseSortedList.any { it.id == preferredId }) {
+            val preferredEvent = baseSortedList.first { it.id == preferredId }
+            listOf(preferredEvent) + baseSortedList.filter { it.id != preferredId }
+        } else {
+            baseSortedList
         }
         
         val isPanelVisible = _isNotificationPanelVisible.value
@@ -248,6 +671,7 @@ object CapsuleStateManager {
 
         if (sortedList.isEmpty()) {
             hideJob?.cancel()
+            _isInputFocused.value = false
             val showAlwaysVal = prefs?.getBoolean("show_always", false) ?: false
             if (showAlwaysVal && !isManuallyHidden && !forceHide) {
                 _uiState.value = CapsuleUiState(

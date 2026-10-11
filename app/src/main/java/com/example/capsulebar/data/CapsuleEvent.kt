@@ -16,6 +16,12 @@ sealed interface CapsuleEvent {
         override val durationMs: Long = 4000
     ) : CapsuleEvent
 
+    data class MediaCustomActionUi(
+        val id: String,
+        val label: String,
+        val isNotificationAction: Boolean = false
+    )
+
     data class Music(
         override val id: String = "music",
         val title: String,
@@ -25,6 +31,17 @@ sealed interface CapsuleEvent {
         val position: Long = 0,
         val albumArt: Bitmap? = null,
         val packageName: String = "",
+        val appName: String = "",
+        val album: String = "",
+        val isLiked: Boolean = false,
+        val isDisliked: Boolean = false,
+        val isLiveStream: Boolean = false,
+        val isBuffering: Boolean = false,
+        val playbackSpeed: Float = 1.0f,
+        val isShuffleEnabled: Boolean = false,
+        val isRepeatEnabled: Boolean = false,
+        val customActions: List<MediaCustomActionUi> = emptyList(),
+        val audioOutputName: String = "Speaker",
         override val priority: Int = 900,
         override val durationMs: Long = 0
     ) : CapsuleEvent
@@ -72,7 +89,14 @@ sealed interface CapsuleEvent {
         val label: String,
         val remainingSeconds: Long,
         val isRunning: Boolean,
-        override val priority: Int = 350,
+        val totalSeconds: Long = remainingSeconds.coerceAtLeast(1L),
+        val isFiring: Boolean = false,
+        val packageName: String = "",
+        val appName: String = "Clock",
+        val isSystemSynced: Boolean = false,
+        val systemActions: List<String> = emptyList(),
+        val targetEndElapsedMs: Long = 0L,
+        override val priority: Int = if (isFiring) 940 else 350,
         override val durationMs: Long = 0
     ) : CapsuleEvent
 
@@ -161,6 +185,12 @@ sealed interface CapsuleEvent {
         val elapsedSeconds: Long,   // total elapsed time in seconds
         val isRunning: Boolean,
         val label: String = "Stopwatch",
+        val laps: List<String> = emptyList(),
+        val packageName: String = "",
+        val appName: String = "Clock",
+        val isSystemSynced: Boolean = false,
+        val systemActions: List<String> = emptyList(),
+        val baseStartElapsedMs: Long = 0L,
         override val priority: Int = 340,
         override val durationMs: Long = 0  // persistent until dismissed
     ) : CapsuleEvent

@@ -228,7 +228,8 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                         )
                     )
                 }
-                android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED,
+                "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED" -> {
                     if (!settings.isBluetoothEnabled) return
                     val device = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         intent.getParcelableExtra(android.bluetooth.BluetoothDevice.EXTRA_DEVICE, android.bluetooth.BluetoothDevice::class.java)
@@ -241,11 +242,18 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     } catch (e: SecurityException) {
                         "Bluetooth Device"
                     }
+                    var batteryLevel = intent.getIntExtra("android.bluetooth.device.extra.BATTERY_LEVEL", -1)
+                    if (batteryLevel < 0 && device != null) {
+                        try {
+                            val method = device.javaClass.getMethod("getBatteryLevel")
+                            batteryLevel = (method.invoke(device) as? Int) ?: -1
+                        } catch (_: Exception) {}
+                    }
                     CapsuleStateManager.postEvent(
                         CapsuleEvent.Bluetooth(
                             deviceName = deviceName,
                             isConnected = true,
-                            batteryLevel = -1
+                            batteryLevel = batteryLevel
                         )
                     )
                 }
@@ -253,12 +261,21 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     if (!settings.isBluetoothEnabled) return
                     CapsuleStateManager.removeEvent("bluetooth")
                 }
+                "android.hardware.usb.action.USB_STATE" -> {
+                    if (!settings.isUsbEnabled) return
+                    val connected = intent.getBooleanExtra("connected", false)
+                    if (connected) {
+                        CapsuleStateManager.postEvent(CapsuleEvent.USB(isConnected = true))
+                    } else {
+                        CapsuleStateManager.removeEvent("usb")
+                    }
+                }
             }
         }
     }
 
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" || key == "is_calibration_mode" || key == "camera_position" || key == "camera_width_dp" || key == "show_as_notch") {
+        if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" || key == "is_calibration_mode" || key == "is_position_locked" || key == "camera_position" || key == "camera_width_dp" || key == "show_as_notch" || key == "split_position" || key == "edge_rounding_percent" || key == "max_popup_width_percent") {
             updateLayoutParams()
         }
     }
@@ -313,21 +330,21 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             }
         }
 
+        // Update window focus flags when user focuses inline notification reply input
+        lifecycleScope.launch {
+            CapsuleStateManager.isInputFocused.collect {
+                updateLayoutParams()
+            }
+        }
+
         // Background loop for Calendar & Weather updates
         lifecycleScope.launch {
             while (true) {
                 try {
                     // Fetch and post Calendar events if permission granted
-                    val calendarText = fetchUpcomingCalendarEvent(this@CapsuleBarService)
-                    if (calendarText != null) {
-                        CapsuleStateManager.postEvent(
-                            CapsuleEvent.CalendarEvent(
-                                title = calendarText,
-                                timeText = "Calendar Schedule",
-                                priority = 270,
-                                durationMs = 6000
-                            )
-                        )
+                    val calendarEvent = fetchUpcomingCalendarEvent(this@CapsuleBarService)
+                    if (calendarEvent != null) {
+                        CapsuleStateManager.postEvent(calendarEvent)
                     }
 
                     // Check and post weather if Location permission is granted
@@ -387,7 +404,9 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED)
             addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_CONNECTED)
+            addAction("android.bluetooth.device.action.BATTERY_LEVEL_CHANGED")
             addAction(android.bluetooth.BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            addAction("android.hardware.usb.action.USB_STATE")
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
@@ -412,6 +431,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                 if (event.action == MotionEvent.ACTION_OUTSIDE && settings.hideWhenTouchingOutside) {
                     val state = CapsuleStateManager.uiState.value
                     if (state.displayMode == DisplayMode.EXPANDED) {
+                        CapsuleStateManager.setInputFocused(false)
                         CapsuleStateManager.toggleExpanded()
                     }
                 }
@@ -502,20 +522,29 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             params.x = 0
             params.y = 0
 
+            val extraHeightDp = (settings.heightDp - 36).coerceAtLeast(0).toFloat()
             val contentHeightDp = when {
-                state.displayMode == DisplayMode.EXPANDED -> 320f
-                isCalibrating -> 280f
+                state.displayMode == DisplayMode.EXPANDED -> 365f + extraHeightDp
+                isCalibrating -> (settings.heightDp + 48f)
                 else -> (settings.heightDp + 36f)
             }
             val yOffsetPx = if (settings.showAsNotch) 0 else settings.yOffset
             params.height = (contentHeightDp * density).toInt() + yOffsetPx
 
-            params.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            val needsKeyboardFocus = state.displayMode == DisplayMode.EXPANDED && CapsuleStateManager.isInputFocused.value
+            val focusFlag = if (needsKeyboardFocus) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            val baseFlags = focusFlag or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+            params.flags = if (isCalibrating) {
+                baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            } else {
+                baseFlags
+            }
+            params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
             @Suppress("DEPRECATION")
             view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
 
@@ -605,15 +634,17 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     private var visualizer: Visualizer? = null
 
-    private fun handleAudioVisualizerState(uiState: CapsuleUiState) {
-        val mainEvent = uiState.mainEvent
-        val shouldRunVisualizer = when (mainEvent) {
-            is CapsuleEvent.Music -> mainEvent.isPlaying
+    private fun eventNeedsVisualizer(event: CapsuleEvent?): Boolean {
+        return when (event) {
+            is CapsuleEvent.Music -> event.isPlaying
             is CapsuleEvent.Call -> true
-            is CapsuleEvent.Recording -> mainEvent.type == "voice"
+            is CapsuleEvent.Recording -> event.type == "voice"
             else -> false
         }
-        
+    }
+
+    private fun handleAudioVisualizerState(uiState: CapsuleUiState) {
+        val shouldRunVisualizer = eventNeedsVisualizer(uiState.mainEvent) || eventNeedsVisualizer(uiState.splitEvent)
         if (shouldRunVisualizer) {
             startAudioVisualizer()
         } else {
@@ -668,27 +699,27 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     private fun processWaveform(waveform: ByteArray) {
         if (waveform.isEmpty()) return
-        val numBars = 3
-        val segmentSize = waveform.size / numBars
+        val numBars = 4
+        val segmentSize = (waveform.size / numBars).coerceAtLeast(1)
         val amplitudes = FloatArray(numBars)
         
         for (i in 0 until numBars) {
             var sum = 0.0
             val start = i * segmentSize
-            val end = (i + 1) * segmentSize
+            val end = ((i + 1) * segmentSize).coerceAtMost(waveform.size)
             for (j in start until end) {
                 val value = (waveform[j].toInt() and 0xFF) - 128
                 sum += value * value
             }
             val rms = Math.sqrt(sum / segmentSize)
-            // Max deviation is 128. Normalize rms (typically 0-64) to range 0.1f - 0.9f
-            val normalized = (rms / 64f).toFloat().coerceIn(0.1f, 0.9f)
+            // Max deviation is 128. Normalize rms (typically 0-64) to range 0.1f - 0.95f
+            val normalized = (rms / 64f).toFloat().coerceIn(0.1f, 0.95f)
             amplitudes[i] = normalized
         }
         CapsuleStateManager.updateAmplitudes(amplitudes.toList())
     }
 
-    private fun fetchUpcomingCalendarEvent(context: Context): String? {
+    private fun fetchUpcomingCalendarEvent(context: Context): CapsuleEvent.CalendarEvent? {
         if (androidx.core.content.ContextCompat.checkSelfPermission(
                 context,
                 android.Manifest.permission.READ_CALENDAR
@@ -705,20 +736,30 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         
         val projection = arrayOf(
             android.provider.CalendarContract.Events.TITLE,
-            android.provider.CalendarContract.Events.DTSTART
+            android.provider.CalendarContract.Events.DTSTART,
+            android.provider.CalendarContract.Events.EVENT_LOCATION
         )
         
         try {
             context.contentResolver.query(uri, projection, selection, selectionArgs, sortOrder)?.use { cursor ->
                 if (cursor.moveToFirst()) {
-                    val title = cursor.getString(0)
+                    val title = cursor.getString(0) ?: "Upcoming Event"
                     val dtStart = cursor.getLong(1)
-                    val diffMins = (dtStart - now) / 60000
-                    return if (diffMins < 60) {
-                        "Next: $title in ${diffMins}m"
+                    val location = cursor.getString(2) ?: ""
+                    val diffMins = ((dtStart - now) / 60000).coerceAtLeast(0)
+                    val formattedTime = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(dtStart))
+                    val timeText = if (diffMins < 60) {
+                        "Starts in ${diffMins}m • $formattedTime"
                     } else {
-                        "Next: $title at ${java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(dtStart))}"
+                        "Scheduled at $formattedTime"
                     }
+                    return CapsuleEvent.CalendarEvent(
+                        title = title,
+                        timeText = timeText,
+                        location = location,
+                        priority = 270,
+                        durationMs = 6000
+                    )
                 }
             }
         } catch (e: Exception) {

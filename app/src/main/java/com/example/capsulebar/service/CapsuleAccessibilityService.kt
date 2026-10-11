@@ -10,7 +10,8 @@ class CapsuleAccessibilityService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             val packageName = event.packageName?.toString() ?: ""
             if (packageName.isNotEmpty() && packageName != "com.android.systemui" && packageName != this.packageName) {
-                com.example.capsulebar.data.CapsuleStateManager.currentForegroundPackage = packageName
+                com.example.capsulebar.data.CapsuleStateManager.updateForegroundPackage(packageName)
+                com.example.capsulebar.service.CapsuleNotificationListener.resyncActiveClockNotifications()
             }
             
             val settings = com.example.capsulebar.data.CapsuleSettings(this)
