@@ -89,7 +89,7 @@ The overlay uses **spring physics** (`dampingRatio=0.50`, `StiffnessMediumLow`) 
 1. Install the APK
 2. Grant **Draw Over Other Apps** permission
 3. Grant **Notification Listener** access
-4. (Optional) Grant **Microphone** for real-time audio visualizer
+4. (Optional) Grant **Microphone** for real-time audio visualizer and **Accessibility Service** for instant System Clock detection
 5. Toggle **Capsular** service ON
 6. Use **Camera Calibration** (Remote D-Pad Controller or direct drag) to align the pill over your punch-hole and toggle **Lock Position**
 
