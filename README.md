@@ -91,7 +91,7 @@ The overlay uses **spring physics** (`dampingRatio=0.50`, `StiffnessMediumLow`) 
 3. Grant **Notification Listener** access
 4. (Optional) Grant **Microphone** for real-time audio visualizer
 5. Toggle **Capsular** service ON
-6. Use **Camera Calibration** to align the pill over your punch-hole
+6. Use **Camera Calibration** (Remote D-Pad Controller or direct drag) to align the pill over your punch-hole and toggle **Lock Position**
 
 ---
 
