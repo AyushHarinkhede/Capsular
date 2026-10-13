@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -199,14 +200,14 @@ fun MainScreen(
         ) {
             Image(
                 painter = painterResource(id = R.drawable.logo),
-                contentDescription = "Capsule Bar logo",
+                contentDescription = "Capsular logo",
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(14.dp))
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Capsule Bar",
+                    text = "Capsular",
                     color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Black,
@@ -937,7 +938,10 @@ fun PositionSection(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier.weight(1f, fill = true),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -946,7 +950,9 @@ fun PositionSection(
                             "Capsule Position Remote",
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 16.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Surface(
                             shape = CircleShape,
@@ -968,11 +974,13 @@ fun PositionSection(
                         else
                             "Use the remote D-pad to align, then tap FIX to lock in place",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 11.sp
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
                     )
                 }
 
                 if (isServiceRunning) {
+                    Spacer(Modifier.width(10.dp))
                     FilledTonalButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -985,13 +993,13 @@ fun PositionSection(
                             contentColor = if (isCalibrationMode) MaterialTheme.colorScheme.onErrorContainer
                                            else MaterialTheme.colorScheme.onPrimaryContainer
                         ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.height(34.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
                     ) {
                         Icon(
                             imageVector = if (isCalibrationMode) Icons.Rounded.VisibilityOff else Icons.Rounded.CenterFocusStrong,
                             contentDescription = null,
-                            modifier = Modifier.size(15.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
@@ -1020,7 +1028,7 @@ fun PositionSection(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Turn on Capsule Bar service above to see the live capsule outline move while using the remote.",
+                        text = "Turn on Capsular service above to see the live capsule outline move while using the remote.",
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium
@@ -1089,13 +1097,15 @@ fun PositionSection(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Remote Step Speed",
+                            text = "Step Speed",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             listOf(1 to "1px Fine", 5 to "5px Step", 15 to "15px Fast").forEach { (step, label) ->
                                 val selected = stepSize == step
@@ -1104,13 +1114,13 @@ fun PositionSection(
                                         .clip(CircleShape)
                                         .background(
                                             if (selected) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                                             else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
                                         )
                                         .clickable {
                                             stepSize = step
                                             com.example.capsulebar.service.HapticSoundManager.playTick()
                                         }
-                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
@@ -1118,7 +1128,9 @@ fun PositionSection(
                                         color = if (selected) MaterialTheme.colorScheme.onPrimary
                                                 else MaterialTheme.colorScheme.onSurface,
                                         fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
