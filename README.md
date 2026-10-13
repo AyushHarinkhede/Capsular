@@ -37,29 +37,34 @@ Just like the Dynamic Island on iPhone 14 Pro and later, Capsular turns your cam
 | **Compact State** | Spring-animates to show activity content (leading icon + trailing visualizer) |
 | **Expanded Card** | Full interactive card drops down on tap with delayed content fade-in |
 | **Split Bubble** | Second activity shows as a circle on the side (like Dynamic Island split view) |
+| **Material You Wavy Music Bar** | Authentic Android 13/14 squiggly wave timeline with interactive vertical pill seek scrubber |
+| **Rich Notifications** | Real-time notifications with dedicated action buttons: **Mark as Read**, **Reply** (inline text + quick chips), and **Mute** (snooze) |
+| **Lock / Unlock Transition** | Persistent lockscreen notch pill with animated lock shackle morph, physical shake feedback, and fluid 3-second auto-dismiss on unlock |
+| **Status Bar Cutout Shield** | Dynamic punch-hole display shield eliminating battery/clock status bar interference |
 | **Music Visualizer** | 4-bar organic waveform synced to real audio amplitude or simulated |
 | **Voice Waveform** | 4-bar green visualizer for active calls and voice recordings |
-| **Priority Queue** | Call > Music > Recording > Flashlight > Sound > Notifications |
+| **Priority Queue** | Call > Alarm > LockState > Music > Recording > Flashlight > Sound > Notifications |
 | **Haptic Feedback** | Synchronized vibration motor feedback on every gesture and state change |
 | **Gestures** | Tap to expand, swipe up to collapse, swipe left to hide, swipe right (music skip) |
 | **Material You** | Full Dynamic Color — adapts to your wallpaper palette on Android 12+ |
 | **M3 Shape Scale** | Official Material 3 shape tokens (ExtraLarge 28dp cards, Full/Pill buttons) |
 | **Event Simulator** | Built-in simulator to test all event types: Call, Music, Timer, Stopwatch, Notification, Navigation, Progress, Recording, and more |
-| **Camera Calibration** | Remote D-pad layout controller with step presets (`0.5px`, `1px`, `5px`, `10px`), position lock, and unified anchor coordinates |
+| **Camera Calibration** | Remote D-pad layout controller with step speed selector (`1px Fine`, `5px Step`, `15px Fast`), position lock, and unified anchor coordinates |
 
 ---
 
 ## Supported Events
 
 - **Phone Calls** — incoming/ongoing with caller name, speakerphone, mute, and end-call controls
-- **Music & Stream Playback** — interactive scrubber, `-10s` / `+10s` seek, like/dislike rating, shuffle/repeat, custom media session actions, and audio output routing
+- **Music & Audio Playback** — Android Material You squiggly wavy timeline bar, 3-state Repeat (`Off` ➔ `Repeat All` ➔ `Repeat 1`), Shuffle, speed cycling (`1.0x`..`2.0x`), `-10s` / `+10s` seek, like/dislike rating, custom media session actions, and audio output routing
+- **Real-Time Notifications** — immediate notch capture, app icon, OTP copy chip, and 3 primary actions: **Mark Read**, **Reply** (inline keyboard + chips), and **Mute** (snooze & app silence)
+- **Lock & Unlock State** — lockscreen persistent capsule, shackle-morphing lock icon, physical shake animation, and auto-dismiss after unlock
+- **Flashlight Controller** — interactive slider, intensity presets, and emergency SOS mode
+- **Timer / Stopwatch** — two-way System Clock sync (`AlarmClock` & notification actions), quick time adjustments (`+1m`, `+5m`), and live lap split tracking
 - **Screen Recording** — red dot + recording duration
 - **Voice Memo** — green waveform + duration
-- **Timer / Stopwatch** — two-way System Clock sync (`AlarmClock` & notification actions), quick time adjustments (`+1m`, `+5m`), and live lap split tracking
-- **Notifications** — app icon, title, message preview
 - **Navigation** — turn direction, distance, ETA
 - **Progress** — generic progress bar (downloads, uploads, etc.)
-- **Flashlight** — flash icon with on/off state
 - **Hotspot** — connected device count
 - **Bluetooth** — device name and battery
 - **System Toggles** — Wi-Fi, DND, Silent, Low Power, Airplane mode
