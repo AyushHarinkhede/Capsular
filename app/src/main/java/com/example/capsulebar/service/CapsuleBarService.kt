@@ -193,16 +193,30 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                         )
                     )
                 }
-                Intent.ACTION_SCREEN_ON -> {
+                Intent.ACTION_SCREEN_OFF -> {
                     if (settings.isLockStateEnabled) {
-                        CapsuleStateManager.postEvent(CapsuleEvent.LockState(isLocked = true))
+                        CapsuleStateManager.postEvent(
+                            CapsuleEvent.LockState(isLocked = true, durationMs = 0L)
+                        )
+                    }
+                }
+                Intent.ACTION_SCREEN_ON -> {
+                    val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+                    val isLocked = keyguardManager.isKeyguardLocked
+                    if (settings.isLockStateEnabled && isLocked) {
+                        CapsuleStateManager.postEvent(
+                            CapsuleEvent.LockState(isLocked = true, durationMs = 0L)
+                        )
                     } else {
                         updateLayoutParams()
                     }
                 }
                 Intent.ACTION_USER_PRESENT -> {
                     if (settings.isLockStateEnabled) {
-                        CapsuleStateManager.postEvent(CapsuleEvent.LockState(isLocked = false))
+                        CapsuleStateManager.postEvent(
+                            CapsuleEvent.LockState(isLocked = false, durationMs = 3000L)
+                        )
+                        HapticSoundManager.playSuccess()
                     } else {
                         updateLayoutParams()
                     }
@@ -400,6 +414,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
             addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
             addAction(Intent.ACTION_USER_PRESENT)
             addAction(AudioManager.RINGER_MODE_CHANGED_ACTION)
             addAction(Intent.ACTION_AIRPLANE_MODE_CHANGED)
@@ -531,22 +546,57 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             val yOffsetPx = if (settings.showAsNotch) 0 else settings.yOffset
             params.height = (contentHeightDp * density).toInt() + yOffsetPx
 
+            val isBigOrDouble = state.displayMode == DisplayMode.EXPANDED || state.displayMode == DisplayMode.SPLIT
+
             val needsKeyboardFocus = state.displayMode == DisplayMode.EXPANDED && CapsuleStateManager.isInputFocused.value
             val focusFlag = if (needsKeyboardFocus) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+            val fullscreenFlag = if (isBigOrDouble) WindowManager.LayoutParams.FLAG_FULLSCREEN else 0
             val baseFlags = focusFlag or
                     WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
-                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                    fullscreenFlag
             params.flags = if (isCalibrating) {
                 baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             } else {
                 baseFlags
             }
             params.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                @Suppress("DEPRECATION")
+                params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+
             @Suppress("DEPRECATION")
-            view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            view.systemUiVisibility = if (isBigOrDouble) {
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            } else {
+                View.SYSTEM_UI_FLAG_VISIBLE
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                view.post {
+                    try {
+                        val insetsController = view.windowInsetsController
+                        if (isBigOrDouble) {
+                            insetsController?.hide(android.view.WindowInsets.Type.statusBars())
+                            insetsController?.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        } else {
+                            insetsController?.show(android.view.WindowInsets.Type.statusBars())
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
 
             try {
                 if (view.isAttachedToWindow) {

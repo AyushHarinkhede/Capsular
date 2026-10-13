@@ -18,6 +18,7 @@ import android.os.Build
 import android.os.Bundle
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import androidx.core.app.NotificationCompat
 import com.example.capsulebar.data.CapsuleEvent
 import com.example.capsulebar.data.CapsuleSettings
 import com.example.capsulebar.data.CapsuleStateManager
@@ -30,7 +31,7 @@ class CapsuleNotificationListener : NotificationListenerService() {
     private val likedOverrides = mutableMapOf<String, Boolean>()
     private val dislikedOverrides = mutableMapOf<String, Boolean>()
     private val shuffleOverrides = mutableMapOf<String, Boolean>()
-    private val repeatOverrides = mutableMapOf<String, Boolean>()
+    private val repeatOverrides = mutableMapOf<String, Int>()
     private val speedOverrides = mutableMapOf<String, Float>()
     private val positionOverrides = mutableMapOf<String, Pair<Long, Long>>()
     private lateinit var mediaSessionManager: MediaSessionManager
@@ -391,9 +392,16 @@ class CapsuleNotificationListener : NotificationListenerService() {
         } else if (settings.isNotificationsEnabled) {
             val isOngoing = (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0 || 
                             (notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
-            if (!isOngoing) {
-                val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: ""
-                val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
+            val isMuted = settings.mutedPackages.contains(packageName)
+            if (!isOngoing && !isMuted) {
+                val rawTitle = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
+                val rawText = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString()?.trim().orEmpty()
+                val bigText = extras.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.trim().orEmpty()
+                val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString()?.trim().orEmpty()
+                
+                val title = if (rawTitle.isNotEmpty()) rawTitle else subText
+                val text = if (bigText.isNotEmpty()) bigText else rawText
+
                 if (title.isNotEmpty() || text.isNotEmpty()) {
                     var appLabel = packageName
                     var appIconBitmap: Bitmap? = null
@@ -421,6 +429,15 @@ class CapsuleNotificationListener : NotificationListenerService() {
 
                     val eventId = "notification_${packageName}_${sbn.id}"
                     activeNotificationsMap[eventId] = sbn
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP && sbn.key.isNotEmpty()) {
+                        activeNotificationsMap[sbn.key] = sbn
+                    }
+
+                    // Trigger sound / haptic on new notification appear
+                    try {
+                        HapticSoundManager.playCapsuleAppear()
+                    } catch (_: Exception) {}
+
                     CapsuleStateManager.postEvent(
                         CapsuleEvent.Notification(
                             id = eventId,
@@ -993,7 +1010,12 @@ class CapsuleNotificationListener : NotificationListenerService() {
         val isLiked = likedOverrides[trackKey] ?: (ratedLiked || actionIndicatesLiked)
         val isDisliked = dislikedOverrides[trackKey] ?: false
         val isShuffle = shuffleOverrides[packageName] ?: false
-        val isRepeat = repeatOverrides[packageName] ?: false
+        val repeatModeVal = repeatOverrides[packageName] ?: (
+            when (controller.playbackState?.actions) {
+                else -> 0
+            }
+        )
+        val isRepeat = repeatModeVal > 0
 
         CapsuleStateManager.postEvent(
             CapsuleEvent.Music(
@@ -1013,6 +1035,7 @@ class CapsuleNotificationListener : NotificationListenerService() {
                 playbackSpeed = playbackSpeed,
                 isShuffleEnabled = isShuffle,
                 isRepeatEnabled = isRepeat,
+                repeatMode = repeatModeVal,
                 customActions = customActionsList.take(6),
                 audioOutputName = detectAudioOutputName()
             )
@@ -1264,13 +1287,26 @@ class CapsuleNotificationListener : NotificationListenerService() {
                     }
                 }
                 action == "toggle_repeat" || action == "repeat" -> {
-                    val nextRepeat = !(repeatOverrides[pkg] ?: currentUiMusic?.isRepeatEnabled ?: false)
+                    val curRepeat = repeatOverrides[pkg] ?: currentUiMusic?.repeatMode ?: 0
+                    // Cycle: 0 (Off) -> 1 (All) -> 2 (One) -> 0 (Off)
+                    val nextRepeat = (curRepeat + 1) % 3
                     repeatOverrides[pkg] = nextRepeat
-                    triggerMatchingCustomOrNotificationAction(controller, pkg, listOf("repeat", "loop"))
+
+                    val targetKeywords = when (nextRepeat) {
+                        2 -> listOf("repeat_one", "repeat one", "repeat_single", "repeat single", "loop_one", "repeat_1")
+                        1 -> listOf("repeat_all", "repeat all", "repeat", "loop")
+                        else -> listOf("repeat_off", "repeat off", "no repeat", "repeat")
+                    }
+                    triggerMatchingCustomOrNotificationAction(controller, pkg, targetKeywords)
                     if (controller != null) {
                         updateMusicState(controller, pkg)
                     } else if (currentUiMusic != null) {
-                        CapsuleStateManager.postEvent(currentUiMusic.copy(isRepeatEnabled = nextRepeat))
+                        CapsuleStateManager.postEvent(
+                            currentUiMusic.copy(
+                                repeatMode = nextRepeat,
+                                isRepeatEnabled = nextRepeat > 0
+                            )
+                        )
                     }
                 }
                 action == "cycle_speed" || action.startsWith("speed:") -> {
@@ -1540,6 +1576,66 @@ class CapsuleNotificationListener : NotificationListenerService() {
                 }
             }
             return false
+        }
+
+        fun markNotificationAsRead(eventId: String): Boolean {
+            val sbn = activeNotificationsMap[eventId]
+                ?: (if (eventId.startsWith("timer")) activeNotificationsMap["timer"] else null)
+                ?: (if (eventId.startsWith("stopwatch")) activeNotificationsMap["stopwatch"] else null)
+                ?: return false
+            val actions = sbn.notification.actions
+            var handled = false
+            if (actions != null) {
+                val markReadKeywords = listOf("read", "mark as read", "seen", "padh liya", "dismiss")
+                for (action in actions) {
+                    val title = action.title?.toString()?.lowercase()?.trim().orEmpty()
+                    val isSemanticRead = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        action.semanticAction == NotificationCompat.Action.SEMANTIC_ACTION_MARK_AS_READ
+                    } else false
+
+                    if (isSemanticRead || markReadKeywords.any { title.contains(it) }) {
+                        try {
+                            action.actionIntent.send()
+                            handled = true
+                            break
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
+
+            // Always dismiss the notification from shade as part of mark as read
+            dismissNotification(eventId)
+            CapsuleStateManager.removeEvent(eventId)
+            return handled || true
+        }
+
+        fun muteNotification(context: Context, eventId: String, packageName: String = ""): Boolean {
+            val sbn = activeNotificationsMap[eventId]
+            val pkg = if (packageName.isNotEmpty()) packageName else sbn?.packageName.orEmpty()
+            
+            // 1. Snooze via NotificationListenerService if supported
+            if (sbn != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    instance?.snoozeNotification(sbn.key, 3600_000L) // Snooze for 1 hour
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            // 2. Add package to muted list in CapsuleSettings
+            if (pkg.isNotEmpty()) {
+                val settings = CapsuleSettings(context)
+                val currentMuted = settings.mutedPackages.toMutableSet()
+                currentMuted.add(pkg)
+                settings.mutedPackages = currentMuted
+            }
+
+            // 3. Dismiss current notification and remove capsule
+            dismissNotification(eventId)
+            CapsuleStateManager.removeEvent(eventId)
+            return true
         }
     }
 }

@@ -247,4 +247,8 @@ class CapsuleSettings(context: Context) {
     var isPositionLocked: Boolean
         get() = prefs.getBoolean("is_position_locked", false)
         set(value) = prefs.edit().putBoolean("is_position_locked", value).apply()
+
+    var mutedPackages: Set<String>
+        get() = prefs.getStringSet("muted_packages", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("muted_packages", value).apply()
 }

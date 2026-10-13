@@ -21,7 +21,14 @@ class CapsuleAccessibilityService : AccessibilityService() {
 
                 val isSystemUiActive = packageName == "com.android.systemui"
                 if (isSystemUiActive && !isLocked) {
-                    com.example.capsulebar.data.CapsuleStateManager.setIsNotificationPanelVisible(true)
+                    val currentMode = com.example.capsulebar.data.CapsuleStateManager.uiState.value.displayMode
+                    if (currentMode == com.example.capsulebar.data.DisplayMode.EXPANDED || currentMode == com.example.capsulebar.data.DisplayMode.SPLIT) {
+                        // Prevent control panel from hiding or covering big/double capsule
+                        com.example.capsulebar.data.CapsuleStateManager.setIsNotificationPanelVisible(false)
+                        dismissNotificationShade()
+                    } else {
+                        com.example.capsulebar.data.CapsuleStateManager.setIsNotificationPanelVisible(true)
+                    }
                 } else if (!isSystemUiActive) {
                     com.example.capsulebar.data.CapsuleStateManager.setIsNotificationPanelVisible(false)
                 }
@@ -48,6 +55,14 @@ class CapsuleAccessibilityService : AccessibilityService() {
 
         fun expandNotificationShade(): Boolean {
             return instance?.performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS) ?: false
+        }
+
+        fun dismissNotificationShade(): Boolean {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                return instance?.performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE) ?: false
+            } else {
+                return instance?.performGlobalAction(GLOBAL_ACTION_BACK) ?: false
+            }
         }
 
         fun lockDeviceScreen(): Boolean {

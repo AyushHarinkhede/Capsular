@@ -40,6 +40,7 @@ sealed interface CapsuleEvent {
         val playbackSpeed: Float = 1.0f,
         val isShuffleEnabled: Boolean = false,
         val isRepeatEnabled: Boolean = false,
+        val repeatMode: Int = 0, // 0 = OFF, 1 = ALL, 2 = ONE
         val customActions: List<MediaCustomActionUi> = emptyList(),
         val audioOutputName: String = "Speaker",
         override val priority: Int = 900,
@@ -80,8 +81,8 @@ sealed interface CapsuleEvent {
     data class LockState(
         override val id: String = "lock_state",
         val isLocked: Boolean,
-        override val priority: Int = 480,
-        override val durationMs: Long = 2500
+        override val priority: Int = 920,
+        override val durationMs: Long = if (isLocked) 0L else 3000L
     ) : CapsuleEvent
 
     data class Timer(

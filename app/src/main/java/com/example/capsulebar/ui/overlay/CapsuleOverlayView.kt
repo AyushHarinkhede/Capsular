@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.media.AudioManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -98,7 +99,7 @@ fun getCapsuleColor(
             is CapsuleEvent.Network -> Color(0xFF00838F)
             is CapsuleEvent.SoundProfile -> Color(0xFFAD1457)
             is CapsuleEvent.USB -> Color(0xFF2E7D32)
-            is CapsuleEvent.LockState -> Color(0xFF37474F)
+            is CapsuleEvent.LockState -> if (event.isLocked) Color(0xFF000000) else Color(0xFF0E1C11)
             is CapsuleEvent.Timer -> Color(0xFFE65100)
             is CapsuleEvent.Navigation -> Color(0xFF0277BD)
             is CapsuleEvent.Progress -> Color(0xFF00695C)
@@ -249,7 +250,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         is CapsuleEvent.Notification  -> 255f
         is CapsuleEvent.Progress      -> 210f
         is CapsuleEvent.Navigation    -> 220f
-        is CapsuleEvent.SystemToggle  -> if (ev.name.lowercase() == "flashlight") 240f else 210f
+        is CapsuleEvent.SystemToggle  -> if (ev.name.lowercase() == "flashlight") 260f else 225f
         is CapsuleEvent.HourlyTracker -> 220f
         is CapsuleEvent.CalendarEvent -> 210f
         is CapsuleEvent.Weather       -> 260f
@@ -261,7 +262,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         is CapsuleEvent.USB           -> 240f
         is CapsuleEvent.LockState     -> 210f
         is CapsuleEvent.Hotspot       -> 230f
-        else                          -> 210f
+        else                          -> 230f
     }
 
     val collapsedRadiusDp = (heightDp.toFloat() / 2f) * (edgeRoundingPercent / 60f).coerceIn(0.15f, 1f)
@@ -413,6 +414,38 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     var showCutHint by remember { mutableStateOf(false) }
     var hintJob by remember { mutableStateOf<Job?>(null) }
 
+    val lockShakeX = remember { androidx.compose.animation.core.Animatable(0f) }
+    val lockScale = remember { androidx.compose.animation.core.Animatable(1f) }
+
+    val mainLockEvent = uiState.mainEvent as? CapsuleEvent.LockState
+    val isUnlockEvent = mainLockEvent != null && !mainLockEvent.isLocked
+
+    LaunchedEffect(mainLockEvent?.isLocked) {
+        if (mainLockEvent != null && !mainLockEvent.isLocked) {
+            // High-precision physical shake animation
+            launch {
+                lockShakeX.snapTo(0f)
+                lockShakeX.animateTo(-8f, tween(35, easing = LinearEasing))
+                lockShakeX.animateTo(8f, tween(40, easing = LinearEasing))
+                lockShakeX.animateTo(-6f, tween(40, easing = LinearEasing))
+                lockShakeX.animateTo(6f, tween(40, easing = LinearEasing))
+                lockShakeX.animateTo(-3f, tween(35, easing = LinearEasing))
+                lockShakeX.animateTo(3f, tween(35, easing = LinearEasing))
+                lockShakeX.animateTo(0f, spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy, stiffness = androidx.compose.animation.core.Spring.StiffnessMedium))
+            }
+            // Dynamic Island unlock bounce
+            launch {
+                lockScale.snapTo(1f)
+                lockScale.animateTo(1.08f, tween(70, easing = FastOutSlowInEasing))
+                lockScale.animateTo(0.96f, tween(60, easing = FastOutSlowInEasing))
+                lockScale.animateTo(1.0f, spring(dampingRatio = 0.5f, stiffness = 400f))
+            }
+        } else {
+            lockShakeX.snapTo(0f)
+            lockScale.snapTo(1f)
+        }
+    }
+
     if (!isVisible && capsuleAlpha == 0f) {
         return
     }
@@ -420,15 +453,45 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    change.consume()
-                    if (dragAmount > 15f) {
-                        com.example.capsulebar.service.CapsuleAccessibilityService.expandNotificationShade()
+            .then(
+                if (uiState.displayMode == DisplayMode.COLLAPSED) {
+                    Modifier.pointerInput(Unit) {
+                        detectVerticalDragGestures { change, dragAmount ->
+                            change.consume()
+                            if (dragAmount > 20f) {
+                                com.example.capsulebar.service.CapsuleAccessibilityService.expandNotificationShade()
+                            }
+                        }
                     }
+                } else {
+                    Modifier
                 }
-            }
+            )
     ) {
+        // Top status bar shield in EXPANDED or SPLIT mode: completely conceals system status bar & icons
+        if (uiState.displayMode == DisplayMode.EXPANDED || uiState.displayMode == DisplayMode.SPLIT) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height((heightDp + 2).dp)
+                    .background(Color.Black)
+            )
+        }
+        // Outside backdrop tap to collapse when expanded
+        if (uiState.displayMode == DisplayMode.EXPANDED) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null
+                    ) {
+                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                        CapsuleStateManager.collapseToCompact()
+                    }
+            )
+        }
+
         // ── SPLIT CIRCLE (DOUBLE CAPSULE IN SAME AREA) ──
         if (splitSize > 0.5f && uiState.splitEvent != null) {
             Box(
@@ -459,8 +522,9 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 .height(leftHeight.dp)
                 .graphicsLayer {
                     alpha = capsuleAlpha
-                    scaleX = scaleAnim.value
-                    scaleY = scaleAnim.value
+                    scaleX = scaleAnim.value * lockScale.value
+                    scaleY = scaleAnim.value * lockScale.value
+                    translationX = lockShakeX.value
                 }
                 .clip(pillShape)
                 .background(
@@ -473,77 +537,50 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 .then(
                     if (uiState.displayMode == DisplayMode.EXPANDED) {
                         Modifier.border(1.dp, Color(0x22FFFFFF), pillShape)
+                    } else if (isUnlockEvent) {
+                        Modifier.border(1.2.dp, Color(0x6681C784), pillShape)
+                    } else if (mainLockEvent != null && mainLockEvent.isLocked) {
+                        Modifier.border(0.8.dp, Color(0x2AFFFFFF), pillShape)
                     } else {
                         Modifier
                     }
                 )
-                // ── TAP TO OPEN CAPSULE IMMEDIATELY ──
-                .pointerInput(uiState.displayMode) {
+                // ── ROCK-SOLID TAP TO EXPAND & DRAG-UP TO COLLAPSE ──
+                .then(
                     if (uiState.displayMode != DisplayMode.EXPANDED) {
-                        detectTapGestures(
-                            onTap = {
-                                com.example.capsulebar.service.HapticSoundManager.playCapsuleTap()
-                                com.example.capsulebar.service.HapticSoundManager.playExpand()
-                                CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
-                                hintJob?.cancel()
-                                hintJob = scope.launch {
-                                    scaleAnim.animateTo(0.94f, tween(45))
-                                    scaleAnim.animateTo(1.03f, tween(55))
-                                    scaleAnim.animateTo(1.00f, spring(dampingRatio = 0.46f, stiffness = 400f))
-                                }
+                        Modifier.clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            com.example.capsulebar.service.HapticSoundManager.playCapsuleTap()
+                            com.example.capsulebar.service.HapticSoundManager.playExpand()
+                            CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
+                            hintJob?.cancel()
+                            hintJob = scope.launch {
+                                scaleAnim.animateTo(0.94f, tween(45))
+                                scaleAnim.animateTo(1.03f, tween(55))
+                                scaleAnim.animateTo(1.00f, spring(dampingRatio = 0.46f, stiffness = 400f))
                             }
-                        )
-                    }
-                }
-                // ── SLASH / DRAG GESTURE DETECTOR ──
-                .pointerInput(uiState.displayMode) {
-                    detectDragGestures(
-                        onDragStart = { startOffset ->
-                            if (uiState.displayMode != DisplayMode.EXPANDED) {
-                                cutLineStart = startOffset
-                                cutLineEnd = startOffset
-                                isSlashing = true
+                        }
+                    } else {
+                        Modifier
+                            .clickable(
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                CapsuleStateManager.keepExpandedAlive()
                             }
-                        },
-                        onDrag = { change, dragAmount ->
-                            change.consume()
-                            if (isSlashing) {
-                                cutLineEnd = change.position
-                            } else {
-                                val dy = dragAmount.y
-                                if (uiState.displayMode == DisplayMode.EXPANDED && dy < -8f) {
-                                    com.example.capsulebar.service.HapticSoundManager.playCollapse()
-                                    CapsuleStateManager.collapseToCompact()
-                                }
-                            }
-                        },
-                        onDragEnd = {
-                            if (isSlashing) {
-                                val start = cutLineStart
-                                val end = cutLineEnd
-                                if (start != null && end != null) {
-                                    val dist = (end - start).getDistance()
-                                    if (dist > 30f) { // Swipe or slash on collapsed pill also expands
-                                        com.example.capsulebar.service.HapticSoundManager.playExpand()
-                                        CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
-                                    } else {
-                                        com.example.capsulebar.service.HapticSoundManager.playCapsuleTap()
-                                        com.example.capsulebar.service.HapticSoundManager.playExpand()
-                                        CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
+                            .pointerInput(Unit) {
+                                detectVerticalDragGestures { change, dragAmount ->
+                                    change.consume()
+                                    if (dragAmount < -8f) {
+                                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                                        CapsuleStateManager.collapseToCompact()
                                     }
                                 }
-                                cutLineStart = null
-                                cutLineEnd = null
-                                isSlashing = false
                             }
-                        },
-                        onDragCancel = {
-                            cutLineStart = null
-                            cutLineEnd = null
-                            isSlashing = false
-                        }
-                    )
-                }
+                    }
+                )
                 .padding(horizontal = if (uiState.displayMode == DisplayMode.EXPANDED) 16.dp else 8.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -558,27 +595,14 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                     MainContent(
                         event = uiState.mainEvent!!,
                         displayMode = uiState.displayMode,
-                        showCutHint = showCutHint,
+                        showCutHint = false,
                         cameraPosition = cameraPosition,
                         cameraWidthDp = cameraWidthDp,
                         heightDp = heightDp
                     )
                 }
-            } else if (quickAccessApps && uiState.displayMode == DisplayMode.EXPANDED) {
+            } else if (uiState.displayMode == DisplayMode.EXPANDED) {
                 QuickAccessAppsBar(context = context, haptic = haptic)
-            }
-
-            // Draw glowing slash/cut line during active drag
-            if (isSlashing && cutLineStart != null && cutLineEnd != null) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    drawLine(
-                        color = Color.White.copy(alpha = 0.9f),
-                        start = cutLineStart!!,
-                        end = cutLineEnd!!,
-                        strokeWidth = 3.dp.toPx(),
-                        cap = StrokeCap.Round
-                    )
-                }
             }
         }
     }
@@ -660,9 +684,10 @@ private fun MaterialYouProgressBar(
     modifier: Modifier = Modifier,
     height: androidx.compose.ui.unit.Dp = 6.dp,
     showThumb: Boolean = false,
+    isPlaying: Boolean = true,
     onSeek: ((Float) -> Unit)? = null
 ) {
-    val phaseShift = if (showThumb) {
+    val phaseShift = if (showThumb && isPlaying) {
         val infiniteTransition = rememberInfiniteTransition(label = "squiggly")
         val phase by infiniteTransition.animateFloat(
             initialValue = 0f,
@@ -706,44 +731,44 @@ private fun MaterialYouProgressBar(
     Canvas(
         modifier = modifier
             .fillMaxWidth()
-            .height(if (showThumb) height * 3.2f else height)
+            .height(if (showThumb) height * 4.5f else height)
             .then(seekModifier)
     ) {
         val width = size.width
         val canvasHeight = size.height
         val barHeight = height.toPx()
-        val thumbRadius = barHeight * 1.25f
-        
         val centerY = canvasHeight / 2
-        
-        // Draw track
+        val activeWidth = (width * progress.coerceIn(0f, 1f)).coerceIn(0f, width)
+
+        // 1. Draw Inactive Background Track (Straight sleek pill track)
         drawRoundRect(
             color = trackColor,
             topLeft = Offset(0f, centerY - barHeight / 2),
             size = androidx.compose.ui.geometry.Size(width, barHeight),
             cornerRadius = androidx.compose.ui.geometry.CornerRadius(barHeight / 2, barHeight / 2)
         )
-        
-        // Draw active track
-        val activeWidth = width * progress.coerceIn(0f, 1f)
-        if (activeWidth > 0) {
-            if (showThumb) {
-                val path = androidx.compose.ui.graphics.Path()
-                val waveLength = 20.dp.toPx()
-                val waveAmplitude = 3.dp.toPx()
+
+        // 2. Draw Active Track (Android 13/14 Material You Squiggly Wavy Track when playing)
+        if (activeWidth > 0f) {
+            if (showThumb && isPlaying) {
+                val wavePath = androidx.compose.ui.graphics.Path()
+                val waveLength = 26.dp.toPx()
+                val waveAmplitude = 3.2.dp.toPx()
                 
-                path.moveTo(0f, centerY)
+                wavePath.moveTo(0f, centerY)
                 var x = 0f
-                val step = 2f
+                val step = 1.5f
                 while (x <= activeWidth) {
+                    // Dampen amplitude near the very beginning (0..waveLength) for smooth rounded start
+                    val dampening = (x / waveLength).coerceIn(0f, 1f)
                     val relativeX = (x / waveLength) * (2 * Math.PI.toFloat()) - phaseShift
-                    val y = centerY + Math.sin(relativeX.toDouble()).toFloat() * waveAmplitude
-                    path.lineTo(x, y)
+                    val y = centerY + (Math.sin(relativeX.toDouble()).toFloat() * waveAmplitude * dampening)
+                    wavePath.lineTo(x, y)
                     x += step
                 }
-                
+
                 drawPath(
-                    path = path,
+                    path = wavePath,
                     color = color,
                     style = androidx.compose.ui.graphics.drawscope.Stroke(
                         width = barHeight,
@@ -759,13 +784,18 @@ private fun MaterialYouProgressBar(
                 )
             }
         }
-        
-        // Draw thumb
+
+        // 3. Draw Material You Distinctive Pill / Dot Thumb
         if (showThumb) {
-            drawCircle(
+            val thumbX = activeWidth.coerceIn(barHeight / 2, width - barHeight / 2)
+            val thumbWidth = barHeight * 0.9f
+            val thumbHeight = barHeight * 2.8f
+            // Vertical pill thumb (Material You media style)
+            drawRoundRect(
                 color = color,
-                radius = thumbRadius,
-                center = Offset(activeWidth.coerceIn(0f, width), centerY)
+                topLeft = Offset(thumbX - thumbWidth / 2, centerY - thumbHeight / 2),
+                size = androidx.compose.ui.geometry.Size(thumbWidth, thumbHeight),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(thumbWidth / 2, thumbWidth / 2)
             )
         }
     }
@@ -875,12 +905,7 @@ private fun CollapsedBubbleContent(
                     )
                 }
                 is CapsuleEvent.LockState -> {
-                    Icon(
-                        imageVector = if (event.isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
-                        contentDescription = null,
-                        tint = MaterialYouPastelBlue,
-                        modifier = Modifier.size(16.dp)
-                    )
+                    LockStateAnimatedIcon(isLocked = event.isLocked, size = 16.dp)
                 }
                 is CapsuleEvent.Timer -> {
                     Icon(
@@ -1128,12 +1153,7 @@ private fun CollapsedBubbleContent(
                         )
                     }
                     is CapsuleEvent.LockState -> {
-                        Icon(
-                            imageVector = if (event.isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
-                            contentDescription = null,
-                            tint = MaterialYouPastelBlue,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        LockStateAnimatedIcon(isLocked = event.isLocked, size = 16.dp)
                     }
                     is CapsuleEvent.Timer -> {
                         Icon(
@@ -1345,12 +1365,24 @@ private fun CollapsedBubbleContent(
                         )
                     }
                     is CapsuleEvent.LockState -> {
-                        Text(
-                            text = if (event.isLocked) "Locked" else "Unlocked",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!event.isLocked) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CheckCircle,
+                                    contentDescription = null,
+                                    tint = Color(0xFF81C784),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                            }
+                            Text(
+                                text = if (event.isLocked) "Locked" else "Unlocked",
+                                color = if (event.isLocked) Color.White.copy(alpha = 0.85f) else Color(0xFF81C784),
+                                fontSize = 11.sp,
+                                fontWeight = if (event.isLocked) FontWeight.SemiBold else FontWeight.ExtraBold,
+                                letterSpacing = 0.2.sp
+                            )
+                        }
                     }
                     is CapsuleEvent.Timer -> {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1683,12 +1715,7 @@ private fun SplitContent(event: CapsuleEvent) {
                 )
             }
             is CapsuleEvent.LockState -> {
-                Icon(
-                    imageVector = if (event.isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
-                    contentDescription = null,
-                    tint = if (event.isLocked) MaterialYouCoral else MaterialYouSageGreen,
-                    modifier = Modifier.size(13.dp)
-                )
+                LockStateAnimatedIcon(isLocked = event.isLocked, size = 13.dp)
             }
             is CapsuleEvent.Authentication -> {
                 Icon(
@@ -2607,7 +2634,8 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
             color = if (event.isLiveStream) Color(0xFFE53935) else accentColor,
             trackColor = Color.White.copy(alpha = 0.16f),
             height = 5.dp,
-            showThumb = event.isPlaying && !event.isLiveStream,
+            showThumb = !event.isLiveStream,
+            isPlaying = event.isPlaying,
             onSeek = if (!event.isLiveStream) { ratio ->
                 CapsuleStateManager.keepExpandedAlive()
                 val targetMs = (ratio * effectiveDuration).toLong().coerceIn(0L, effectiveDuration)
@@ -2828,15 +2856,27 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
             }
         )
 
-        // Repeat Chip
+        // Repeat Chip (3 states: Off -> Repeat All -> Repeat One -> Off)
+        val repeatIcon = when (event.repeatMode) {
+            2 -> Icons.Rounded.RepeatOne
+            1 -> Icons.Rounded.RepeatOn
+            else -> if (event.isRepeatEnabled) Icons.Rounded.RepeatOn else Icons.Rounded.Repeat
+        }
+        val repeatLabel = when (event.repeatMode) {
+            2 -> "Repeat 1"
+            1 -> "Repeat All"
+            else -> if (event.isRepeatEnabled) "Repeat All" else "Repeat Off"
+        }
+        val isRepeatActive = event.repeatMode > 0 || event.isRepeatEnabled
+
         MediaActionChip(
-            icon = if (event.isRepeatEnabled) Icons.Rounded.RepeatOn else Icons.Rounded.Repeat,
-            label = if (event.isRepeatEnabled) "Repeat On" else "Repeat",
-            isActive = event.isRepeatEnabled,
+            icon = repeatIcon,
+            label = repeatLabel,
+            isActive = isRepeatActive,
             accentColor = accentColor,
             onClick = {
                 CapsuleStateManager.keepExpandedAlive()
-                com.example.capsulebar.service.HapticSoundManager.playToggle(!event.isRepeatEnabled)
+                com.example.capsulebar.service.HapticSoundManager.playClick()
                 CapsuleStateManager.sendMediaAction("toggle_repeat")
             }
         )
@@ -3539,8 +3579,11 @@ private fun ProgressExpandedCard(event: CapsuleEvent.Progress) {
 @Composable
 private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val settings = remember { CapsuleSettings(context) }
     var replyText by remember { mutableStateOf("") }
+    var isReplying by remember { mutableStateOf(false) }
+    var actionStatusText by remember { mutableStateOf<String?>(null) }
     var otpCopied by remember(event.id) { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
@@ -3572,12 +3615,13 @@ private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // App header & content preview
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .clickable {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     com.example.capsulebar.service.CapsuleNotificationListener.openNotification(
@@ -3630,7 +3674,7 @@ private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
                     text = event.text,
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 11.sp,
-                    maxLines = settings.maxTextLines.coerceAtLeast(1),
+                    maxLines = settings.maxTextLines.coerceAtLeast(2),
                     overflow = TextOverflow.Ellipsis
                 )
             }
@@ -3659,7 +3703,7 @@ private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
             }
         }
 
-        // Show image if enabled
+        // Show image if available
         if (settings.showImages && event.largeImage != null) {
             Image(
                 bitmap = event.largeImage.asImageBitmap(),
@@ -3671,8 +3715,150 @@ private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
             )
         }
 
-        if (settings.sendReplies || notificationActions.isNotEmpty()) {
-            val chipBg = if (settings.addBackground) Color(0x33FFFFFF) else Color(0x18FFFFFF)
+        // Action status indicator (Feedback when Mark as Read, Replied, or Muted)
+        if (actionStatusText != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0x3381C784))
+                    .padding(vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = actionStatusText ?: "",
+                    color = Color(0xFF81C784),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        // Dedicated Primary Actions: Mark as Read | Reply | Mute
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // 1. Mark as Read
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x2281C784))
+                    .border(0.8.dp, Color(0x6681C784), RoundedCornerShape(10.dp))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        actionStatusText = "Marked as read ✓"
+                        scope.launch {
+                            delay(350)
+                            com.example.capsulebar.service.CapsuleNotificationListener.markNotificationAsRead(event.id)
+                        }
+                    }
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.DoneAll,
+                        contentDescription = null,
+                        tint = Color(0xFF81C784),
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "Mark Read",
+                        color = Color(0xFF81C784),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            // 2. Reply (Toggle reply bar / focus)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isReplying) Color(0x3390CAF9) else Color(0x2290CAF9))
+                    .border(0.8.dp, Color(0x6690CAF9), RoundedCornerShape(10.dp))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        isReplying = !isReplying
+                        if (!isReplying) {
+                            CapsuleStateManager.setInputFocused(false)
+                        }
+                    }
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.Reply,
+                        contentDescription = null,
+                        tint = Color(0xFF90CAF9),
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "Reply",
+                        color = Color(0xFF90CAF9),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            // 3. Mute
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0x22FFB74D))
+                    .border(0.8.dp, Color(0x66FFB74D), RoundedCornerShape(10.dp))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        actionStatusText = "Muted ✓"
+                        scope.launch {
+                            delay(350)
+                            com.example.capsulebar.service.CapsuleNotificationListener.muteNotification(
+                                context,
+                                event.id,
+                                event.packageName
+                            )
+                        }
+                    }
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.NotificationsOff,
+                        contentDescription = null,
+                        tint = Color(0xFFFFB74D),
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        "Mute",
+                        color = Color(0xFFFFB74D),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        // Secondary / System Notification Actions (e.g., custom actions provided by the app)
+        if (notificationActions.isNotEmpty()) {
             androidx.compose.foundation.lazy.LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -3682,8 +3868,8 @@ private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0x2890CAF9))
-                            .border(0.5.dp, Color(0x6690CAF9), RoundedCornerShape(8.dp))
+                            .background(Color(0x18FFFFFF))
+                            .border(0.5.dp, Color(0x33FFFFFF), RoundedCornerShape(8.dp))
                             .clickable {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                 com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, actionTitle)
@@ -3691,84 +3877,97 @@ private fun NotificationExpandedCard(event: CapsuleEvent.Notification) {
                             }
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text(actionTitle, color = Color(0xFF90CAF9), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                if (settings.sendReplies) {
-                    val chips = listOf("OK", "On my way", "Yes", "No", "Thanks")
-                    items(chips.size) { idx ->
-                        val chip = chips[idx]
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(chipBg)
-                                .clickable {
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    replyText = chip
-                                }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(chip, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                        }
+                        Text(actionTitle, color = Color.White.copy(alpha = 0.9f), fontSize = 10.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }
         }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TextField(
-                value = replyText,
-                onValueChange = { replyText = it },
-                placeholder = { Text("Reply...", fontSize = 12.sp, color = Color.White.copy(alpha = 0.5f)) },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0x18FFFFFF),
-                    unfocusedContainerColor = Color(0x12FFFFFF),
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .onFocusChanged { focusState ->
-                        CapsuleStateManager.setInputFocused(focusState.isFocused)
+        // Reply field & Quick Reply Chips
+        if (isReplying || settings.sendReplies) {
+            val chipBg = if (settings.addBackground) Color(0x33FFFFFF) else Color(0x18FFFFFF)
+            val quickChips = listOf("OK", "On my way", "Yes", "No", "Thanks", "Talk later")
+            androidx.compose.foundation.lazy.LazyRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(quickChips.size) { idx ->
+                    val chip = quickChips[idx]
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(chipBg)
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                replyText = chip
+                            }
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(chip, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                TextField(
+                    value = replyText,
+                    onValueChange = { replyText = it },
+                    placeholder = { Text("Type reply...", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f)) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0x18FFFFFF),
+                        unfocusedContainerColor = Color(0x12FFFFFF),
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .onFocusChanged { focusState ->
+                            CapsuleStateManager.setInputFocused(focusState.isFocused)
+                        },
+                    singleLine = true
+                )
+                IconButton(
+                    onClick = {
+                        if (replyText.isNotEmpty()) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            CapsuleStateManager.setInputFocused(false)
+                            actionStatusText = "Reply sent ✓"
+                            val currentText = replyText
+                            replyText = ""
+                            scope.launch {
+                                delay(300)
+                                com.example.capsulebar.service.CapsuleNotificationListener.replyToNotification(event.id, currentText)
+                                CapsuleStateManager.removeEvent(event.id)
+                            }
+                        }
                     },
-                singleLine = true
-            )
-            IconButton(
-                onClick = {
-                    if (replyText.isNotEmpty()) {
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0xFF90CAF9), CircleShape)
+                ) {
+                    Icon(Icons.Rounded.Send, null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                }
+                IconButton(
+                    onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         CapsuleStateManager.setInputFocused(false)
-                        com.example.capsulebar.service.CapsuleNotificationListener.replyToNotification(event.id, replyText)
-                        replyText = ""
+                        com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
                         CapsuleStateManager.removeEvent(event.id)
-                    }
-                },
-                modifier = Modifier
-                    .size(38.dp)
-                    .background(Color(0xFF90CAF9), CircleShape)
-            ) {
-                Icon(Icons.Rounded.Send, null, tint = Color.Black, modifier = Modifier.size(17.dp))
-            }
-            IconButton(
-                onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    CapsuleStateManager.setInputFocused(false)
-                    com.example.capsulebar.service.CapsuleNotificationListener.dismissNotification(event.id)
-                    CapsuleStateManager.removeEvent(event.id)
-                },
-                modifier = Modifier
-                    .size(38.dp)
-                    .background(Color(0x22F2B8B5), CircleShape)
-            ) {
-                Icon(Icons.Rounded.Delete, null, tint = Color(0xFFEF5350), modifier = Modifier.size(17.dp))
+                    },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(Color(0x22F2B8B5), CircleShape)
+                ) {
+                    Icon(Icons.Rounded.Delete, null, tint = Color(0xFFEF5350), modifier = Modifier.size(16.dp))
+                }
             }
         }
     }
@@ -4297,15 +4496,28 @@ private fun DeliveryExpandedCard(event: CapsuleEvent.Delivery) {
 
 @Composable
 private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: Context, haptic: androidx.compose.ui.hapticfeedback.HapticFeedback) {
-    val icon = when (event.name.lowercase()) {
-        "wi-fi" -> Icons.Rounded.Wifi
-        "flashlight" -> Icons.Rounded.FlashlightOn
-        "dnd" -> Icons.Rounded.DoNotDisturbOn
-        "silent" -> Icons.Rounded.VolumeOff
-        "ring" -> Icons.Rounded.VolumeUp
-        "vibrate" -> Icons.Rounded.Vibration
-        "airplane" -> Icons.Rounded.AirplaneTicket
-        "low power" -> Icons.Rounded.BatterySaver
+    val nameLower = event.name.lowercase()
+    val isFlashlight = nameLower == "flashlight"
+    val isWifi = nameLower == "wi-fi" || nameLower == "wifi"
+    val isBluetooth = nameLower == "bluetooth"
+    val isDnd = nameLower == "dnd" || nameLower.contains("do not disturb")
+    val isSound = nameLower in listOf("silent", "ring", "vibrate", "sound")
+    val isHotspot = nameLower == "hotspot" || nameLower.contains("tether")
+    val isAirplane = nameLower == "airplane" || nameLower.contains("flight")
+    val isLowPower = nameLower.contains("low power") || nameLower.contains("battery saver")
+    val isMobileData = nameLower.contains("data") || nameLower.contains("cellular")
+
+    val icon = when {
+        isWifi -> Icons.Rounded.Wifi
+        isFlashlight -> Icons.Rounded.FlashlightOn
+        isBluetooth -> Icons.Rounded.Bluetooth
+        isDnd -> Icons.Rounded.DoNotDisturbOn
+        nameLower == "silent" -> Icons.Rounded.VolumeOff
+        nameLower == "vibrate" -> Icons.Rounded.Vibration
+        nameLower == "ring" || isSound -> Icons.Rounded.VolumeUp
+        isHotspot -> Icons.Rounded.WifiTethering
+        isAirplane -> Icons.Rounded.AirplaneTicket
+        isLowPower -> Icons.Rounded.BatterySaver
         else -> Icons.Rounded.Settings
     }
     val toggleColor = if (event.isEnabled) Color(0xFF81C784) else Color.White.copy(alpha = 0.5f)
@@ -4325,15 +4537,19 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
                         .background(toggleBg)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                            if (event.name.lowercase() == "flashlight") {
+                            CapsuleStateManager.keepExpandedAlive()
+                            if (isFlashlight) {
                                 val nextState = !event.isEnabled
                                 if (nextState) {
                                     FlashlightController.turnOn(context, FlashlightController.intensityFlow.value)
-                                    CapsuleStateManager.postEvent(event.copy(isEnabled = true, durationMs = 0))
+                                    CapsuleStateManager.postEvent(event.copy(id = "toggle_flashlight", isEnabled = true, durationMs = 0))
                                 } else {
                                     FlashlightController.turnOff(context)
+                                    CapsuleStateManager.removeEvent("toggle_flashlight")
                                     CapsuleStateManager.removeEvent(event.id)
                                 }
+                            } else {
+                                CapsuleStateManager.postEvent(event.copy(isEnabled = !event.isEnabled, durationMs = 0))
                             }
                         },
                     contentAlignment = Alignment.Center
@@ -4343,7 +4559,19 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
                 Spacer(Modifier.width(12.dp))
                 Column {
                     Text(event.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Text(if (event.isEnabled) "Enabled" else "Disabled", color = toggleColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    val statusSubtitle = when {
+                        isFlashlight && event.isEnabled -> {
+                            val curInt = (FlashlightController.intensityFlow.value * 100).toInt()
+                            if (FlashlightController.isSosActiveFlow.value) "SOS Strobe Active" else "Torch Active • $curInt%"
+                        }
+                        isWifi && event.isEnabled -> "Wi-Fi Active"
+                        isBluetooth && event.isEnabled -> "Bluetooth Active"
+                        isDnd && event.isEnabled -> "DND Enabled"
+                        isHotspot && event.isEnabled -> "Hotspot Broadcasting"
+                        event.isEnabled -> "Enabled"
+                        else -> "Disabled"
+                    }
+                    Text(statusSubtitle, color = toggleColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -4351,16 +4579,18 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
                 checked = event.isEnabled,
                 onCheckedChange = { nextState ->
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    if (event.name.lowercase() == "flashlight") {
+                    CapsuleStateManager.keepExpandedAlive()
+                    if (isFlashlight) {
                         if (nextState) {
                             FlashlightController.turnOn(context, FlashlightController.intensityFlow.value)
-                            CapsuleStateManager.postEvent(event.copy(isEnabled = true, durationMs = 0))
+                            CapsuleStateManager.postEvent(event.copy(id = "toggle_flashlight", isEnabled = true, durationMs = 0))
                         } else {
                             FlashlightController.turnOff(context)
+                            CapsuleStateManager.removeEvent("toggle_flashlight")
                             CapsuleStateManager.removeEvent(event.id)
                         }
                     } else {
-                        CapsuleStateManager.postEvent(event.copy(isEnabled = nextState))
+                        CapsuleStateManager.postEvent(event.copy(isEnabled = nextState, durationMs = 0))
                     }
                 },
                 colors = SwitchDefaults.colors(
@@ -4370,9 +4600,11 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
             )
         }
 
-        if (event.name.lowercase() == "flashlight" && event.isEnabled) {
-            Spacer(Modifier.height(14.dp))
+        // ── FLASHLIGHT CONTROLS ──
+        if (isFlashlight && event.isEnabled) {
+            Spacer(Modifier.height(10.dp))
             val intensity by FlashlightController.intensityFlow.collectAsStateWithLifecycle(initialValue = 0.5f)
+            val isSosActive by FlashlightController.isSosActiveFlow.collectAsStateWithLifecycle(initialValue = false)
 
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -4380,8 +4612,8 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Flashlight Intensity", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    Text("${(intensity * 100).toInt()}%", color = toggleColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Torch Intensity", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text("${(intensity * 100).toInt()}%", color = Color(0xFFFFD54F), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(4.dp))
                 Row(
@@ -4391,34 +4623,248 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Remove,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(16.dp).clickable {
+                        contentDescription = "Decrease",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp).clickable {
+                            CapsuleStateManager.keepExpandedAlive()
                             val newIntensity = (intensity - 0.1f).coerceAtLeast(0.1f)
                             FlashlightController.setIntensity(context, newIntensity)
                         }
                     )
                     Slider(
                         value = intensity,
-                        onValueChange = { FlashlightController.setIntensity(context, it) },
+                        onValueChange = {
+                            CapsuleStateManager.keepExpandedAlive()
+                            FlashlightController.setIntensity(context, it)
+                        },
                         valueRange = 0.1f..1.0f,
                         colors = SliderDefaults.colors(
-                            thumbColor = toggleColor,
-                            activeTrackColor = toggleColor,
+                            thumbColor = Color(0xFFFFD54F),
+                            activeTrackColor = Color(0xFFFFD54F),
                             inactiveTrackColor = Color.White.copy(alpha = 0.2f)
                         ),
                         modifier = Modifier.weight(1f)
                     )
                     Icon(
                         imageVector = Icons.Rounded.Add,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.6f),
-                        modifier = Modifier.size(16.dp).clickable {
+                        contentDescription = "Increase",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp).clickable {
+                            CapsuleStateManager.keepExpandedAlive()
                             val newIntensity = (intensity + 0.1f).coerceIn(0.1f, 1.0f)
                             FlashlightController.setIntensity(context, newIntensity)
                         }
                     )
                 }
+
+                Spacer(Modifier.height(8.dp))
+                // Quick Intensity Presets & SOS strobe mode
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val presets = listOf(0.25f to "25%", 0.50f to "50%", 0.75f to "75%", 1.0f to "MAX")
+                    presets.forEach { (pct, label) ->
+                        val isSelected = kotlin.math.abs(intensity - pct) < 0.05f
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) Color(0xFFFFD54F) else Color(0x1AFFFFFF))
+                                .clickable {
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    CapsuleStateManager.keepExpandedAlive()
+                                    FlashlightController.setIntensity(context, pct)
+                                }
+                                .padding(vertical = 5.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) Color.Black else Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // SOS Mode Button
+                    Box(
+                        modifier = Modifier
+                            .weight(1.2f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSosActive) Color(0xFFFF5252) else Color(0x22FF5252))
+                            .border(1.dp, Color(0xFFFF5252), RoundedCornerShape(8.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                CapsuleStateManager.keepExpandedAlive()
+                                FlashlightController.toggleSos(context)
+                            }
+                            .padding(vertical = 5.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = if (isSosActive) "SOS ON" else "SOS",
+                            color = if (isSosActive) Color.White else Color(0xFFFF8A80),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+        } else if (isWifi) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        CapsuleStateManager.keepExpandedAlive()
+                        safeStartActivity(context, Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x2281C784)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Icon(Icons.Rounded.Wifi, null, tint = Color(0xFF81C784), modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Wi-Fi Settings", color = Color(0xFF81C784), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        CapsuleStateManager.keepExpandedAlive()
+                        safeStartActivity(context, Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x1AFFFFFF)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Network Panel", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        } else if (isBluetooth) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        CapsuleStateManager.keepExpandedAlive()
+                        safeStartActivity(context, Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x2290CAF9)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Icon(Icons.Rounded.Bluetooth, null, tint = Color(0xFF90CAF9), modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Bluetooth Settings", color = Color(0xFF90CAF9), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        } else if (isDnd) {
+            Spacer(Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        CapsuleStateManager.keepExpandedAlive()
+                        safeStartActivity(context, Intent(android.provider.Settings.ACTION_ZEN_MODE_PRIORITY_SETTINGS))
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0x22FFB74D)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f).height(36.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Icon(Icons.Rounded.DoNotDisturbOn, null, tint = Color(0xFFFFB74D), modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("DND Policy Settings", color = Color(0xFFFFB74D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        } else if (isSound) {
+            Spacer(Modifier.height(8.dp))
+            val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+            val profiles = listOf("Ring", "Vibrate", "Silent")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                profiles.forEach { p ->
+                    val active = nameLower == p.lowercase()
+                    val activeColor = when (p) {
+                        "Silent" -> Color(0xFFE57373)
+                        "Vibrate" -> Color(0xFF90CAF9)
+                        else -> Color(0xFF81C784)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (active) activeColor.copy(alpha = 0.25f) else Color(0x14FFFFFF))
+                            .border(1.dp, if (active) activeColor else Color.Transparent, RoundedCornerShape(8.dp))
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                CapsuleStateManager.keepExpandedAlive()
+                                try {
+                                    audioManager.ringerMode = when (p) {
+                                        "Silent" -> AudioManager.RINGER_MODE_SILENT
+                                        "Vibrate" -> AudioManager.RINGER_MODE_VIBRATE
+                                        else -> AudioManager.RINGER_MODE_NORMAL
+                                    }
+                                } catch (_: Exception) {}
+                                CapsuleStateManager.postEvent(event.copy(name = p, isEnabled = true, durationMs = 0))
+                            }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(p, color = if (active) activeColor else Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else if (isLowPower) {
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    CapsuleStateManager.keepExpandedAlive()
+                    safeStartActivity(context, Intent(android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS))
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0x22FFB74D)),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().height(36.dp),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Icon(Icons.Rounded.BatterySaver, null, tint = Color(0xFFFFB74D), modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Battery Saver Settings", color = Color(0xFFFFB74D), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    CapsuleStateManager.keepExpandedAlive()
+                    safeStartActivity(context, Intent(android.provider.Settings.ACTION_SETTINGS))
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0x1AFFFFFF)),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth().height(36.dp),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Icon(Icons.Rounded.Settings, null, tint = Color.White, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("System Settings", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -5252,6 +5698,85 @@ private fun UsbExpandedCard(event: CapsuleEvent.USB, context: Context, haptic: a
 }
 
 @Composable
+private fun LockStateAnimatedIcon(
+    isLocked: Boolean,
+    modifier: Modifier = Modifier,
+    size: androidx.compose.ui.unit.Dp = 16.dp
+) {
+    val transition = updateTransition(targetState = isLocked, label = "lockStateTransition")
+
+    val shackleRotation by transition.animateFloat(
+        transitionSpec = {
+            if (false isTransitioningTo true) {
+                spring(dampingRatio = 0.6f, stiffness = 400f)
+            } else {
+                keyframes {
+                    durationMillis = 350
+                    0f at 0
+                    -26f at 110 using FastOutSlowInEasing
+                    6f at 220 using FastOutSlowInEasing
+                    0f at 350 using FastOutSlowInEasing
+                }
+            }
+        },
+        label = "shackleRotation"
+    ) { _ -> 0f }
+
+    val iconScale by transition.animateFloat(
+        transitionSpec = {
+            if (false isTransitioningTo true) {
+                tween(200)
+            } else {
+                keyframes {
+                    durationMillis = 350
+                    1.0f at 0
+                    1.25f at 120 using FastOutSlowInEasing
+                    0.94f at 240 using FastOutSlowInEasing
+                    1.0f at 350
+                }
+            }
+        },
+        label = "iconScale"
+    ) { _ -> 1f }
+
+    val iconColor by transition.animateColor(
+        transitionSpec = { tween(220) },
+        label = "iconColor"
+    ) { locked ->
+        if (locked) Color.White else Color(0xFF81C784)
+    }
+
+    Box(
+        modifier = modifier
+            .size(size + 6.dp)
+            .graphicsLayer {
+                scaleX = iconScale
+                scaleY = iconScale
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (!isLocked) {
+            Box(
+                modifier = Modifier
+                    .size(size + 4.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x3381C784))
+            )
+        }
+        Icon(
+            imageVector = if (isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+            contentDescription = if (isLocked) "Locked" else "Unlocked",
+            tint = iconColor,
+            modifier = Modifier
+                .size(size)
+                .graphicsLayer {
+                    rotationZ = shackleRotation
+                }
+        )
+    }
+}
+
+@Composable
 private fun LockStateExpandedCard(event: CapsuleEvent.LockState, context: Context, haptic: androidx.compose.ui.hapticfeedback.HapticFeedback) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -5260,22 +5785,22 @@ private fun LockStateExpandedCard(event: CapsuleEvent.LockState, context: Contex
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color(0x22A8C7FA)),
+                    .background(if (event.isLocked) Color(0x22FFFFFF) else Color(0x2281C784)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (event.isLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
-                    contentDescription = null,
-                    tint = Color(0xFF90CAF9),
-                    modifier = Modifier.size(24.dp)
-                )
+                LockStateAnimatedIcon(isLocked = event.isLocked, size = 24.dp)
             }
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(text = "Security State", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Text(text = if (event.isLocked) "Device is secured" else "Device is unlocked", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                Text(
+                    text = if (event.isLocked) "Device is secured" else "Device is unlocked",
+                    color = if (event.isLocked) Color.White.copy(alpha = 0.5f) else Color(0xFF81C784),
+                    fontSize = 12.sp,
+                    fontWeight = if (event.isLocked) FontWeight.Normal else FontWeight.SemiBold
+                )
             }
         }
         Spacer(Modifier.height(14.dp))
@@ -5355,12 +5880,12 @@ private fun QuickAccessAppsBar(
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     if (FlashlightController.isFlashlightOn) {
                         FlashlightController.turnOff(context)
-                        CapsuleStateManager.removeEvent("flashlight_toggle")
+                        CapsuleStateManager.removeEvent("toggle_flashlight")
                     } else {
                         FlashlightController.turnOn(context, FlashlightController.intensityFlow.value)
                         CapsuleStateManager.postEvent(
                             CapsuleEvent.SystemToggle(
-                                id = "flashlight_toggle",
+                                id = "toggle_flashlight",
                                 name = "Flashlight",
                                 isEnabled = true,
                                 priority = 750,

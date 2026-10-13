@@ -245,7 +245,7 @@ object CapsuleStateManager {
         activeEvents[normalizedEvent.id] = normalizedEvent
 
         val duration = if (normalizedEvent.durationMs > 0) {
-            getCompactDurationMs()
+            normalizedEvent.durationMs
         } else {
             0L
         }
@@ -560,8 +560,7 @@ object CapsuleStateManager {
                 val current = _uiState.value
                 if (current.displayMode == DisplayMode.EXPANDED && !_isInputFocused.value) {
                     val newMode = if (current.splitEvent != null) DisplayMode.SPLIT else DisplayMode.COLLAPSED
-                    _uiState.value = current.copy(displayMode = newMode)
-                    com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                    setDisplayMode(newMode)
                 }
             }
         }
@@ -591,9 +590,21 @@ object CapsuleStateManager {
 
         if (prevMode == DisplayMode.EXPANDED && (mode == DisplayMode.COLLAPSED || mode == DisplayMode.SPLIT || mode == DisplayMode.HIDDEN)) {
             com.example.capsulebar.service.HapticSoundManager.playCollapse()
+            val mainEv = _uiState.value.mainEvent
+            if (mainEv != null && mainEv.durationMs > 0) {
+                autoDismissJobs[mainEv.id]?.cancel()
+                autoDismissJobs[mainEv.id] = scope.launch {
+                    delay(getCompactDurationMs())
+                    removeEvent(mainEv.id)
+                }
+            }
         }
         
         if (mode == DisplayMode.EXPANDED) {
+            val mainId = _uiState.value.mainEvent?.id
+            if (mainId != null) {
+                autoDismissJobs[mainId]?.cancel()
+            }
             keepExpandedAlive()
         }
     }
