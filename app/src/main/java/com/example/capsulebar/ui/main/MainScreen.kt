@@ -169,8 +169,8 @@ fun MainScreen(
     val autoHideExpandedPopupSec by viewModel.autoHideExpandedPopupSec.collectAsStateWithLifecycle()
     val hideWhenTouchingOutside by viewModel.hideWhenTouchingOutside.collectAsStateWithLifecycle()
     val splitPosition by viewModel.splitPosition.collectAsStateWithLifecycle()
-    val nfcWristWatchTagId by viewModel.nfcWristWatchTagId.collectAsStateWithLifecycle()
-    val nfcChetakTagId by viewModel.nfcChetakTagId.collectAsStateWithLifecycle()
+    val nfcSoundProfileTagId by viewModel.nfcSoundProfileTagId.collectAsStateWithLifecycle()
+    val nfcQuickLaunchTagId by viewModel.nfcQuickLaunchTagId.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val hapticsEnabled by viewModel.hapticsEnabled.collectAsStateWithLifecycle()
     val soundEffectsEnabled by viewModel.soundEffectsEnabled.collectAsStateWithLifecycle()
@@ -457,14 +457,19 @@ fun MainScreen(
                 .padding(horizontal = 24.dp)
         ) {
             NfcTasksSection(
-                nfcWristWatchTagId = nfcWristWatchTagId,
-                nfcChetakTagId = nfcChetakTagId,
-                onBindWristWatch = { viewModel.startNfcRegistration("wrist_watch") },
-                onBindChetak = { viewModel.startNfcRegistration("chetak") },
-                onClearWristWatch = { viewModel.clearNfcTag("wrist_watch") },
-                onClearChetak = { viewModel.clearNfcTag("chetak") },
-                onSimulateWristWatch = { CapsuleStateManager.processNfcTag(context, "MOCK_WRIST_WATCH_TAG") },
-                onSimulateChetak = { CapsuleStateManager.processNfcTag(context, "MOCK_CHETAK_TAG") }
+                nfcSoundProfileTagId = nfcSoundProfileTagId,
+                nfcQuickLaunchTagId = nfcQuickLaunchTagId,
+                onRunNfcCheck = { viewModel.triggerMockNfc() },
+                onBindSoundProfile = { viewModel.startNfcRegistration("sound_profile") },
+                onBindQuickLaunch = { viewModel.startNfcRegistration("quick_launch") },
+                onClearSoundProfile = { viewModel.clearNfcTag("sound_profile") },
+                onClearQuickLaunch = { viewModel.clearNfcTag("quick_launch") },
+                onSimulateSoundProfile = {
+                    CapsuleStateManager.processNfcTag(context, nfcSoundProfileTagId.ifEmpty { "04:A1:C3:E5" }, "ISO 14443-4 NDEF")
+                },
+                onSimulateQuickLaunch = {
+                    CapsuleStateManager.processNfcTag(context, nfcQuickLaunchTagId.ifEmpty { "04:B2:D4:F6" }, "ISO 14443-4 NDEF")
+                }
             )
         }
 
@@ -503,12 +508,17 @@ fun MainScreen(
                 onMockDndToggle = { viewModel.triggerMockSystemToggle("DND", true) },
                 onMockSilentToggle = { viewModel.triggerMockSystemToggle("Silent", true) },
                 onMockLowPowerToggle = { viewModel.triggerMockSystemToggle("Low Power", true) },
+                onMockNfc = { viewModel.triggerMockNfc() },
                 onClear = { viewModel.clearEvents() }
             )
         }
 
         if (activeRegistrationTask != null) {
-            val taskName = if (activeRegistrationTask == "wrist_watch") "Wrist Watch Task" else "Chetak Task"
+            val taskName = when (activeRegistrationTask) {
+                "sound_profile", "wrist_watch" -> "Sound Profile Toggle"
+                "quick_launch", "chetak" -> "Quick Launch Action"
+                else -> "NFC Action"
+            }
             AlertDialog(
                 onDismissRequest = { viewModel.cancelNfcRegistration() },
                 title = { Text("Bind NFC Tag") },
@@ -524,12 +534,21 @@ fun MainScreen(
                             tint = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            "Approach your NFC tag to the back of the phone to bind it to: $taskName.\n\n(Or click 'Test Scan' below to simulate a scan)",
+                            "Approach your physical NFC tag to the back of the phone to bind it to:\n$taskName\n\n(Or tap 'Simulate Tag Scan' below to bind immediately)",
                             textAlign = TextAlign.Center
                         )
                     }
                 },
-                confirmButton = {},
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val mockId = if (activeRegistrationTask == "sound_profile" || activeRegistrationTask == "wrist_watch") "04:A1:C3:E5" else "04:B2:D4:F6"
+                            CapsuleStateManager.processNfcTag(context, mockId, "ISO 14443-4 NDEF")
+                        }
+                    ) {
+                        Text("Simulate Tag Scan")
+                    }
+                },
                 dismissButton = {
                     TextButton(onClick = { viewModel.cancelNfcRegistration() }) {
                         Text("Cancel")
@@ -942,8 +961,8 @@ fun PositionSection(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             // ── HEADER & LIVE OUTLINE TOGGLE ──────────────────────────────────────
             Row(
@@ -952,8 +971,10 @@ fun PositionSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
-                    modifier = Modifier.weight(1f, fill = true),
-                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -963,7 +984,7 @@ fun PositionSection(
                             "Capsule Position Remote",
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -988,12 +1009,11 @@ fun PositionSection(
                             "Use the remote D-pad to align, then tap FIX to lock in place",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
-                        lineHeight = 15.sp
+                        lineHeight = 14.sp
                     )
                 }
 
                 if (isServiceRunning) {
-                    Spacer(Modifier.width(10.dp))
                     FilledTonalButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -1006,13 +1026,13 @@ fun PositionSection(
                             contentColor = if (isCalibrationMode) MaterialTheme.colorScheme.onErrorContainer
                                            else MaterialTheme.colorScheme.onPrimaryContainer
                         ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.height(32.dp)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                        modifier = Modifier.height(30.dp)
                     ) {
                         Icon(
                             imageVector = if (isCalibrationMode) Icons.Rounded.VisibilityOff else Icons.Rounded.CenterFocusStrong,
                             contentDescription = null,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
@@ -1067,9 +1087,9 @@ fun PositionSection(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(14.dp),
+                        .padding(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     // 1. DIGITAL TELEMETRY SCREEN (Shows Live Coordinates & Unified Anchor Status)
                     Row(
@@ -1316,22 +1336,30 @@ fun PositionSection(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 8.dp)
+                        ) {
                             Text(
                                 text = "Camera Hole Cutout Width",
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Keeps left & right capsule icons clear of the lens",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 10.sp
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             FilledTonalIconButton(
                                 onClick = {
@@ -1339,7 +1367,7 @@ fun PositionSection(
                                     com.example.capsulebar.service.HapticSoundManager.playTick()
                                 },
                                 enabled = !isPositionLocked,
-                                modifier = Modifier.size(30.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(Icons.Rounded.Remove, contentDescription = "Decrease Cutout", modifier = Modifier.size(16.dp))
                             }
@@ -1347,7 +1375,11 @@ fun PositionSection(
                                 text = "${cameraWidthDp}dp",
                                 color = MaterialTheme.colorScheme.primary,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Black
+                                fontWeight = FontWeight.Black,
+                                maxLines = 1,
+                                softWrap = false,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.widthIn(min = 42.dp)
                             )
                             FilledTonalIconButton(
                                 onClick = {
@@ -1355,7 +1387,7 @@ fun PositionSection(
                                     com.example.capsulebar.service.HapticSoundManager.playTick()
                                 },
                                 enabled = !isPositionLocked,
-                                modifier = Modifier.size(30.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(Icons.Rounded.Add, contentDescription = "Increase Cutout", modifier = Modifier.size(16.dp))
                             }
@@ -2564,6 +2596,7 @@ fun EventSimulatorSection(
     onMockDndToggle: () -> Unit,
     onMockSilentToggle: () -> Unit,
     onMockLowPowerToggle: () -> Unit,
+    onMockNfc: () -> Unit = {},
     onClear: () -> Unit
 ) {
     Card(
@@ -2653,6 +2686,7 @@ fun EventSimulatorSection(
                             SimBtn(Icons.Rounded.BatteryAlert, "Low Battery", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer, onMockLowBattery)
                             SimBtn(Icons.Rounded.Headphones, "Bluetooth", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer, onMockBluetooth)
                             SimBtn(Icons.Rounded.Router, "Hotspot", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer, onMockHotspot)
+                            SimBtn(Icons.Rounded.Nfc, "NFC Check", MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.colorScheme.onTertiaryContainer, onMockNfc)
                         }
                     }
 
@@ -2819,15 +2853,27 @@ fun Modifier.pressClickEffect(): Modifier = composed {
 
 @Composable
 fun NfcTasksSection(
-    nfcWristWatchTagId: String,
-    nfcChetakTagId: String,
-    onBindWristWatch: () -> Unit,
-    onBindChetak: () -> Unit,
-    onClearWristWatch: () -> Unit,
-    onClearChetak: () -> Unit,
-    onSimulateWristWatch: () -> Unit,
-    onSimulateChetak: () -> Unit
+    nfcSoundProfileTagId: String,
+    nfcQuickLaunchTagId: String,
+    onRunNfcCheck: () -> Unit,
+    onBindSoundProfile: () -> Unit,
+    onBindQuickLaunch: () -> Unit,
+    onClearSoundProfile: () -> Unit,
+    onClearQuickLaunch: () -> Unit,
+    onSimulateSoundProfile: () -> Unit,
+    onSimulateQuickLaunch: () -> Unit
 ) {
+    val context = LocalContext.current
+    val nfcAdapter = remember {
+        try {
+            android.nfc.NfcAdapter.getDefaultAdapter(context)
+        } catch (_: Exception) {
+            null
+        }
+    }
+    val isNfcSupported = nfcAdapter != null
+    val isNfcEnabled = nfcAdapter?.isEnabled == true
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.extraLarge,
@@ -2835,66 +2881,124 @@ fun NfcTasksSection(
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                "NFC Tasks",
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-
-            // Wrist Watch Task
-            Column {
-                Text(
-                    "Wrist Watch Task (Sound Profile Toggle)",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp
-                )
-                Text(
-                    "Scans to toggle sound profile: Ring <-> Vibrate",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-                Spacer(Modifier.height(8.dp))
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (nfcWristWatchTagId.isNotEmpty()) {
-                        Text(
-                            "Bound tag: $nfcWristWatchTagId",
-                            color = MaterialTheme.colorScheme.primary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            IconButton(onClick = onClearWristWatch) {
-                                Icon(Icons.Rounded.Delete, contentDescription = "Clear tag ID", tint = MaterialTheme.colorScheme.error)
-                            }
-                            Button(onClick = onSimulateWristWatch) {
-                                Text("Test Scan", fontSize = 12.sp)
-                            }
+                    Icon(
+                        imageVector = Icons.Rounded.Nfc,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        "NFC Tasks & Check",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+
+                // NFC Hardware Status Badge
+                Surface(
+                    color = when {
+                        !isNfcSupported -> MaterialTheme.colorScheme.surfaceContainerHighest
+                        isNfcEnabled -> Color(0xFF2E7D32).copy(alpha = 0.2f)
+                        else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+                    },
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = when {
+                            !isNfcSupported -> "No Hardware"
+                            isNfcEnabled -> "NFC Ready"
+                            else -> "NFC Disabled"
+                        },
+                        color = when {
+                            !isNfcSupported -> MaterialTheme.colorScheme.onSurfaceVariant
+                            isNfcEnabled -> Color(0xFF81C784)
+                            else -> MaterialTheme.colorScheme.error
+                        },
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // ── DEDICATED NFC CHECK CARD ─────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "NFC Check",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                "Simulates an NFC tag read to test live Capsule Bar animation & reaction",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 11.sp,
+                                lineHeight = 15.sp
+                            )
                         }
-                    } else {
-                        Text(
-                            "Not bound",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = onBindWristWatch) {
-                                Text("Bind Tag", fontSize = 12.sp)
-                            }
-                            Button(
-                                onClick = onSimulateWristWatch,
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = {
+                                com.example.capsulebar.service.HapticSoundManager.playClick()
+                                onRunNfcCheck()
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Rounded.Sensors, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Run NFC Check", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+
+                        if (isNfcSupported && !isNfcEnabled) {
+                            OutlinedButton(
+                                onClick = {
+                                    try {
+                                        context.startActivity(Intent(android.provider.Settings.ACTION_NFC_SETTINGS))
+                                    } catch (_: Exception) {}
+                                },
+                                shape = RoundedCornerShape(12.dp)
                             ) {
-                                Text("Test Scan", fontSize = 12.sp)
+                                Text("Enable NFC", fontSize = 12.sp)
                             }
                         }
                     }
@@ -2903,39 +3007,47 @@ fun NfcTasksSection(
 
             HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
 
-            // Chetak Task
-            Column {
+            Text(
+                "Automated Tag Actions",
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
+            )
+
+            // Task 1: Sound Profile Toggle
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
-                    "Chetak Task (Bluetooth + Launch App)",
+                    "Sound Profile Toggle",
                     color = MaterialTheme.colorScheme.onSurface,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp
                 )
                 Text(
-                    "Scans to turn on Bluetooth and launch Chetak App/Oto Music (after 2s delay)",
+                    "Scans tag to toggle sound: Ring ↔ Vibrate",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (nfcChetakTagId.isNotEmpty()) {
+                    if (nfcSoundProfileTagId.isNotEmpty()) {
                         Text(
-                            "Bound tag: $nfcChetakTagId",
+                            "Bound tag: $nfcSoundProfileTagId",
                             color = MaterialTheme.colorScheme.primary,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                             modifier = Modifier.weight(1f)
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            IconButton(onClick = onClearChetak) {
+                            IconButton(onClick = onClearSoundProfile) {
                                 Icon(Icons.Rounded.Delete, contentDescription = "Clear tag ID", tint = MaterialTheme.colorScheme.error)
                             }
-                            Button(onClick = onSimulateChetak) {
-                                Text("Test Scan", fontSize = 12.sp)
+                            Button(onClick = onSimulateSoundProfile) {
+                                Text("Test Action", fontSize = 12.sp)
                             }
                         }
                     } else {
@@ -2946,14 +3058,74 @@ fun NfcTasksSection(
                             modifier = Modifier.weight(1f)
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = onBindChetak) {
+                            Button(onClick = onBindSoundProfile) {
                                 Text("Bind Tag", fontSize = 12.sp)
                             }
                             Button(
-                                onClick = onSimulateChetak,
+                                onClick = onSimulateSoundProfile,
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                             ) {
-                                Text("Test Scan", fontSize = 12.sp)
+                                Text("Test Action", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f))
+
+            // Task 2: Quick Launch Action
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Quick Launch Action",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    "Scans tag to turn on Bluetooth & launch Music Player",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (nfcQuickLaunchTagId.isNotEmpty()) {
+                        Text(
+                            "Bound tag: $nfcQuickLaunchTagId",
+                            color = MaterialTheme.colorScheme.primary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            IconButton(onClick = onClearQuickLaunch) {
+                                Icon(Icons.Rounded.Delete, contentDescription = "Clear tag ID", tint = MaterialTheme.colorScheme.error)
+                            }
+                            Button(onClick = onSimulateQuickLaunch) {
+                                Text("Test Action", fontSize = 12.sp)
+                            }
+                        }
+                    } else {
+                        Text(
+                            "Not bound",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = onBindQuickLaunch) {
+                                Text("Bind Tag", fontSize = 12.sp)
+                            }
+                            Button(
+                                onClick = onSimulateQuickLaunch,
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                            ) {
+                                Text("Test Action", fontSize = 12.sp)
                             }
                         }
                     }

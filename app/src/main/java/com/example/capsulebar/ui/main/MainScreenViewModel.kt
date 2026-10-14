@@ -189,11 +189,13 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _splitPosition = MutableStateFlow(settings.splitPosition)
     val splitPosition: StateFlow<String> = _splitPosition.asStateFlow()
 
-    private val _nfcWristWatchTagId = MutableStateFlow(settings.nfcWristWatchTagId)
+    private val _nfcWristWatchTagId = MutableStateFlow(settings.nfcSoundProfileTagId)
     val nfcWristWatchTagId: StateFlow<String> = _nfcWristWatchTagId.asStateFlow()
+    val nfcSoundProfileTagId: StateFlow<String> = _nfcWristWatchTagId.asStateFlow()
 
-    private val _nfcChetakTagId = MutableStateFlow(settings.nfcChetakTagId)
+    private val _nfcChetakTagId = MutableStateFlow(settings.nfcQuickLaunchTagId)
     val nfcChetakTagId: StateFlow<String> = _nfcChetakTagId.asStateFlow()
+    val nfcQuickLaunchTagId: StateFlow<String> = _nfcChetakTagId.asStateFlow()
 
     private val _themeMode = MutableStateFlow(settings.themeMode)
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
@@ -232,22 +234,22 @@ class MainScreenViewModel(context: Context) : ViewModel() {
 
     fun bindNfcTag(tagId: String) {
         val task = _activeRegistrationTask.value ?: return
-        if (task == "wrist_watch") {
-            settings.nfcWristWatchTagId = tagId
+        if (task == "sound_profile" || task == "wrist_watch") {
+            settings.nfcSoundProfileTagId = tagId
             _nfcWristWatchTagId.value = tagId
-        } else if (task == "chetak") {
-            settings.nfcChetakTagId = tagId
+        } else if (task == "quick_launch" || task == "chetak") {
+            settings.nfcQuickLaunchTagId = tagId
             _nfcChetakTagId.value = tagId
         }
         _activeRegistrationTask.value = null
     }
 
     fun clearNfcTag(task: String) {
-        if (task == "wrist_watch") {
-            settings.nfcWristWatchTagId = ""
+        if (task == "sound_profile" || task == "wrist_watch") {
+            settings.nfcSoundProfileTagId = ""
             _nfcWristWatchTagId.value = ""
-        } else if (task == "chetak") {
-            settings.nfcChetakTagId = ""
+        } else if (task == "quick_launch" || task == "chetak") {
+            settings.nfcQuickLaunchTagId = ""
             _nfcChetakTagId.value = ""
         }
     }
@@ -296,8 +298,8 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             "auto_hide_expanded_popup_sec" -> _autoHideExpandedPopupSec.value = settings.autoHideExpandedPopupSec
             "hide_when_touching_outside" -> _hideWhenTouchingOutside.value = settings.hideWhenTouchingOutside
             "split_position" -> _splitPosition.value = settings.splitPosition
-            "nfc_wrist_watch_tag_id" -> _nfcWristWatchTagId.value = settings.nfcWristWatchTagId
-            "nfc_chetak_tag_id" -> _nfcChetakTagId.value = settings.nfcChetakTagId
+            "nfc_wrist_watch_tag_id", "nfc_sound_profile_tag_id" -> _nfcWristWatchTagId.value = settings.nfcSoundProfileTagId
+            "nfc_chetak_tag_id", "nfc_quick_launch_tag_id" -> _nfcChetakTagId.value = settings.nfcQuickLaunchTagId
             "is_glass_effect_enabled" -> _isGlassEffectEnabled.value = settings.isGlassEffectEnabled
             "glass_blur_radius" -> _glassBlurRadius.value = settings.glassBlurRadius
             "glass_edge_transparency" -> _glassEdgeTransparency.value = settings.glassEdgeTransparency
@@ -770,6 +772,18 @@ class MainScreenViewModel(context: Context) : ViewModel() {
                 label = "Morning Alarm",
                 isFiring = true
             )
+        )
+    }
+
+    fun triggerMockNfc(tagId: String = "04:5A:8E:C2", techType: String = "ISO 14443-4 NDEF") {
+        CapsuleStateManager.postNfcReaction(
+            tagId = tagId,
+            title = "NFC Check Verified",
+            subtitle = "Tag UID: $tagId",
+            techType = techType,
+            actionName = "NFC Check",
+            actionStatus = "Tag scanned successfully",
+            isBound = false
         )
     }
 

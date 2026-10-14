@@ -223,13 +223,26 @@ class CapsuleSettings(context: Context) {
         get() = prefs.getString("split_position", "Right") ?: "Right"
         set(value) = prefs.edit().putString("split_position", value).apply()
 
+    var nfcSoundProfileTagId: String
+        get() = prefs.getString("nfc_sound_profile_tag_id", prefs.getString("nfc_wrist_watch_tag_id", "") ?: "") ?: ""
+        set(value) {
+            prefs.edit().putString("nfc_sound_profile_tag_id", value).putString("nfc_wrist_watch_tag_id", value).apply()
+        }
+
+    var nfcQuickLaunchTagId: String
+        get() = prefs.getString("nfc_quick_launch_tag_id", prefs.getString("nfc_chetak_tag_id", "") ?: "") ?: ""
+        set(value) {
+            prefs.edit().putString("nfc_quick_launch_tag_id", value).putString("nfc_chetak_tag_id", value).apply()
+        }
+
+    // Backward compatibility aliases
     var nfcWristWatchTagId: String
-        get() = prefs.getString("nfc_wrist_watch_tag_id", "") ?: ""
-        set(value) = prefs.edit().putString("nfc_wrist_watch_tag_id", value).apply()
+        get() = nfcSoundProfileTagId
+        set(value) { nfcSoundProfileTagId = value }
 
     var nfcChetakTagId: String
-        get() = prefs.getString("nfc_chetak_tag_id", "") ?: ""
-        set(value) = prefs.edit().putString("nfc_chetak_tag_id", value).apply()
+        get() = nfcQuickLaunchTagId
+        set(value) { nfcQuickLaunchTagId = value }
 
     // "dark", "light", or "system"
     var themeMode: String

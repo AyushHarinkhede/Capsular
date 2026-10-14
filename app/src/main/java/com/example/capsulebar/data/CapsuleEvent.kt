@@ -230,5 +230,18 @@ sealed interface CapsuleEvent {
         override val priority: Int = 950,
         override val durationMs: Long = 0
     ) : CapsuleEvent
+
+    data class Nfc(
+        override val id: String = "nfc",
+        val tagId: String,
+        val title: String = "NFC Tag Detected",
+        val subtitle: String = "NFC Read Successful",
+        val techType: String = "NFC Tag",
+        val actionName: String = "",
+        val actionStatus: String = "",
+        val isBound: Boolean = false,
+        override val priority: Int = 920,
+        override val durationMs: Long = 4500L
+    ) : CapsuleEvent
 }
 

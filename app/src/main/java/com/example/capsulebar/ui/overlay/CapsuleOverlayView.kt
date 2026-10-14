@@ -119,6 +119,7 @@ fun getCapsuleColor(
             is CapsuleEvent.CalendarEvent -> Color(0xFF1565C0)
             is CapsuleEvent.Weather -> Color(0xFF00838F)
             is CapsuleEvent.Alarm -> Color(0xFFE65100)
+            is CapsuleEvent.Nfc -> Color(0xFF006064)
         }
     }
 
@@ -1176,6 +1177,14 @@ private fun CollapsedBubbleContent(
                         modifier = Modifier.size(16.dp)
                     )
                 }
+                is CapsuleEvent.Nfc -> {
+                    Icon(
+                        imageVector = Icons.Rounded.Nfc,
+                        contentDescription = null,
+                        tint = Color(0xFF80DEEA),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     } else {
@@ -1434,6 +1443,14 @@ private fun CollapsedBubbleContent(
                             modifier = Modifier.size(16.dp)
                         )
                     }
+                    is CapsuleEvent.Nfc -> {
+                        Icon(
+                            imageVector = Icons.Rounded.Nfc,
+                            contentDescription = null,
+                            tint = Color(0xFF80DEEA),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             },
             rightContent = {
@@ -1673,6 +1690,16 @@ private fun CollapsedBubbleContent(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                    is CapsuleEvent.Nfc -> {
+                        Text(
+                            text = if (event.actionName.isNotBlank()) event.actionName else "NFC",
+                            color = Color(0xFF80DEEA),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         )
@@ -1861,6 +1888,14 @@ private fun SplitContent(event: CapsuleEvent) {
                     modifier = Modifier.size(13.dp)
                 )
             }
+            is CapsuleEvent.Nfc -> {
+                Icon(
+                    imageVector = Icons.Rounded.Nfc,
+                    contentDescription = null,
+                    tint = Color(0xFF80DEEA),
+                    modifier = Modifier.size(13.dp)
+                )
+            }
         }
     }
 }
@@ -1895,6 +1930,7 @@ private fun capsuleEventLabel(event: CapsuleEvent): String = when (event) {
     is CapsuleEvent.SoundProfile -> "SOUND MODE"
     is CapsuleEvent.USB -> "USB PORT"
     is CapsuleEvent.LockState -> "DEVICE LOCK"
+    is CapsuleEvent.Nfc -> "NFC • READY"
 }
 
 @Composable
@@ -2113,6 +2149,7 @@ private fun ExpandedCard(
                 is CapsuleEvent.SoundProfile -> SoundProfileExpandedCard(event, context, haptic)
                 is CapsuleEvent.USB -> UsbExpandedCard(event, context, haptic)
                 is CapsuleEvent.LockState -> LockStateExpandedCard(event, context, haptic)
+                is CapsuleEvent.Nfc -> NfcExpandedCard(event, context, haptic)
             }
         }
     }
@@ -6011,6 +6048,180 @@ private fun LockStateExpandedCard(event: CapsuleEvent.LockState, context: Contex
                 Icon(Icons.Rounded.Settings, null, tint = Color.White, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Security settings", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun NfcExpandedCard(
+    event: CapsuleEvent.Nfc,
+    context: Context,
+    haptic: androidx.compose.ui.hapticfeedback.HapticFeedback
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Top Header Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF00838F).copy(alpha = 0.35f))
+                        .border(1.dp, Color(0xFF80DEEA).copy(alpha = 0.5f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Nfc,
+                        contentDescription = "NFC",
+                        tint = Color(0xFF80DEEA),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                Column {
+                    Text(
+                        text = event.title,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = event.subtitle,
+                        color = Color(0xFF80DEEA),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x22FFFFFF))
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        CapsuleStateManager.removeEvent(event.id)
+                        CapsuleStateManager.collapseToCompact()
+                    }
+                    .padding(horizontal = 10.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    text = "Dismiss",
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // Details Panel Card
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0x16FFFFFF))
+                .border(1.dp, Color(0x22FFFFFF), RoundedCornerShape(14.dp))
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.VpnKey,
+                        contentDescription = null,
+                        tint = Color(0xFF80DEEA),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "Tag UID",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp
+                    )
+                }
+                Text(
+                    text = event.tagId,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Sensors,
+                        contentDescription = null,
+                        tint = Color(0xFF80DEEA),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = "Standard / Tech",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp
+                    )
+                }
+                Text(
+                    text = event.techType,
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            if (event.actionName.isNotBlank() || event.actionStatus.isNotBlank()) {
+                HorizontalDivider(color = Color(0x1AFFFFFF), thickness = 0.5.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (event.isBound) "Triggered Action" else "Status",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(
+                                if (event.isBound) Color(0xFF2E7D32).copy(alpha = 0.35f)
+                                else Color(0xFF00838F).copy(alpha = 0.35f)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = event.actionName.ifBlank { event.actionStatus },
+                            color = if (event.isBound) Color(0xFFA5D6A7) else Color(0xFF80DEEA),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }

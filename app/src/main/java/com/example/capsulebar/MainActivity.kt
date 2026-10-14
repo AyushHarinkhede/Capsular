@@ -91,10 +91,22 @@ class MainActivity : ComponentActivity() {
             NfcAdapter.ACTION_NDEF_DISCOVERED == action) {
 
             val tagIdBytes = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID)
-            val tagId = tagIdBytes?.joinToString("") { String.format("%02X", it) } ?: ""
+            val tag = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG, android.nfc.Tag::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(NfcAdapter.EXTRA_TAG)
+            }
+
+            val tagId = tagIdBytes?.joinToString(":") { String.format("%02X", it) }
+                ?: tag?.id?.joinToString(":") { String.format("%02X", it) }
+                ?: ""
+
+            val techList = tag?.techList?.map { it.substringAfterLast(".") }?.joinToString(", ") ?: "NFC Tag"
+
             if (tagId.isNotEmpty()) {
                 val fromBackground = (Intent.ACTION_MAIN != intent.action)
-                CapsuleStateManager.processNfcTag(this, tagId, fromBackground) {
+                CapsuleStateManager.processNfcTag(this, tagId, techList, fromBackground) {
                     finish()
                 }
             }

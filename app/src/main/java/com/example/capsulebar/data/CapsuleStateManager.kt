@@ -754,72 +754,178 @@ object CapsuleStateManager {
 
     var activeNfcRegistrationTask: String? = null
 
-    fun processNfcTag(context: android.content.Context, tagId: String, fromBackground: Boolean = false, onFinish: (() -> Unit)? = null) {
+    fun formatNfcTagId(raw: String): String {
+        val clean = raw.replace(":", "").trim().uppercase()
+        return if (clean.length >= 2) clean.chunked(2).joinToString(":") else clean
+    }
+
+    fun postNfcReaction(
+        tagId: String,
+        title: String,
+        subtitle: String,
+        techType: String = "NFC Tag",
+        actionName: String = "",
+        actionStatus: String = "",
+        isBound: Boolean = false
+    ) {
+        val event = CapsuleEvent.Nfc(
+            tagId = tagId,
+            title = title,
+            subtitle = subtitle,
+            techType = techType,
+            actionName = actionName,
+            actionStatus = actionStatus,
+            isBound = isBound,
+            priority = 930,
+            durationMs = 4500L
+        )
+        postEvent(event)
+        com.example.capsulebar.service.HapticSoundManager.playExpand()
+        // Open/expand capsule so user immediately sees dynamic reaction
+        setDisplayMode(DisplayMode.EXPANDED)
+    }
+
+    fun processNfcTag(
+        context: android.content.Context,
+        tagId: String,
+        fromBackground: Boolean = false,
+        onFinish: (() -> Unit)? = null
+    ) {
+        processNfcTag(context, tagId, "NFC Tag", fromBackground, onFinish)
+    }
+
+    fun processNfcTag(
+        context: android.content.Context,
+        tagId: String,
+        techType: String,
+        fromBackground: Boolean = false,
+        onFinish: (() -> Unit)? = null
+    ) {
         val settings = CapsuleSettings(context)
+        val formattedId = formatNfcTagId(tagId)
         val task = activeNfcRegistrationTask
+
         if (task != null) {
-            if (task == "wrist_watch") {
-                settings.nfcWristWatchTagId = tagId
-                android.widget.Toast.makeText(context, "Wrist Watch Task bound to tag: $tagId", android.widget.Toast.LENGTH_SHORT).show()
-            } else if (task == "chetak") {
-                settings.nfcChetakTagId = tagId
-                android.widget.Toast.makeText(context, "Chetak Task bound to tag: $tagId", android.widget.Toast.LENGTH_SHORT).show()
+            val taskLabel = when (task) {
+                "sound_profile", "wrist_watch" -> {
+                    settings.nfcSoundProfileTagId = formattedId
+                    "Sound Profile Toggle"
+                }
+                "quick_launch", "chetak" -> {
+                    settings.nfcQuickLaunchTagId = formattedId
+                    "Quick Launch Action"
+                }
+                else -> {
+                    settings.nfcSoundProfileTagId = formattedId
+                    "NFC Action"
+                }
             }
             activeNfcRegistrationTask = null
             vibrateBriefly(context)
+            postNfcReaction(
+                tagId = formattedId,
+                title = "NFC Tag Bound",
+                subtitle = "Assigned to $taskLabel",
+                techType = techType,
+                actionName = taskLabel,
+                actionStatus = "Tag bound to $taskLabel",
+                isBound = true
+            )
+            android.widget.Toast.makeText(context, "$taskLabel bound to tag: $formattedId", android.widget.Toast.LENGTH_SHORT).show()
         } else {
-            if (tagId == settings.nfcWristWatchTagId) {
-                executeWristWatchTask(context)
-                if (fromBackground) {
-                    onFinish?.invoke()
+            val boundSoundTag = formatNfcTagId(settings.nfcSoundProfileTagId)
+            val boundLaunchTag = formatNfcTagId(settings.nfcQuickLaunchTagId)
+
+            val rawClean = tagId.replace(":", "").uppercase()
+            val isSoundMatch = boundSoundTag.isNotEmpty() && (formattedId == boundSoundTag || rawClean == boundSoundTag.replace(":", "").uppercase())
+            val isLaunchMatch = boundLaunchTag.isNotEmpty() && (formattedId == boundLaunchTag || rawClean == boundLaunchTag.replace(":", "").uppercase())
+
+            when {
+                isSoundMatch -> {
+                    val newMode = executeSoundProfileTask(context)
+                    postNfcReaction(
+                        tagId = formattedId,
+                        title = "NFC • Sound Mode",
+                        subtitle = "Switched to $newMode",
+                        techType = techType,
+                        actionName = "Sound: $newMode",
+                        actionStatus = "Ringer mode set to $newMode",
+                        isBound = true
+                    )
+                    if (fromBackground) {
+                        onFinish?.invoke()
+                    }
                 }
-            } else if (tagId == settings.nfcChetakTagId) {
-                executeChetakTask(context)
-                if (fromBackground) {
-                    onFinish?.invoke()
+                isLaunchMatch -> {
+                    executeQuickLaunchTask(context)
+                    postNfcReaction(
+                        tagId = formattedId,
+                        title = "NFC • Quick Launch",
+                        subtitle = "Bluetooth enabled & player opening",
+                        techType = techType,
+                        actionName = "Quick Launch",
+                        actionStatus = "Bluetooth ON • Player starting",
+                        isBound = true
+                    )
+                    if (fromBackground) {
+                        onFinish?.invoke()
+                    }
                 }
-            } else {
-                android.widget.Toast.makeText(context, "NFC Tag scanned: $tagId (Unbound)", android.widget.Toast.LENGTH_SHORT).show()
+                else -> {
+                    vibrateBriefly(context)
+                    postNfcReaction(
+                        tagId = formattedId,
+                        title = "NFC Tag Detected",
+                        subtitle = "UID: $formattedId",
+                        techType = techType,
+                        actionName = "NFC Check Verified",
+                        actionStatus = "Tag scanned successfully • Unbound",
+                        isBound = false
+                    )
+                    android.widget.Toast.makeText(context, "NFC Tag Scanned: $formattedId (Unbound)", android.widget.Toast.LENGTH_SHORT).show()
+                    if (fromBackground) {
+                        onFinish?.invoke()
+                    }
+                }
             }
         }
     }
 
-    private fun executeWristWatchTask(context: android.content.Context) {
+    private fun executeSoundProfileTask(context: android.content.Context): String {
         val audioManager = context.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
         val currentMode = audioManager.ringerMode
-        if (currentMode == android.media.AudioManager.RINGER_MODE_VIBRATE) {
-            audioManager.ringerMode = android.media.AudioManager.RINGER_MODE_NORMAL
-            postEvent(CapsuleEvent.SoundProfile(profile = "Ring"))
-            android.widget.Toast.makeText(context, "Wrist Watch Task: Sound Profile set to Ring", android.widget.Toast.LENGTH_SHORT).show()
+        val (newMode, profileName) = if (currentMode == android.media.AudioManager.RINGER_MODE_VIBRATE) {
+            Pair(android.media.AudioManager.RINGER_MODE_NORMAL, "Ring")
         } else {
-            audioManager.ringerMode = android.media.AudioManager.RINGER_MODE_VIBRATE
-            postEvent(CapsuleEvent.SoundProfile(profile = "Vibrate"))
-            android.widget.Toast.makeText(context, "Wrist Watch Task: Sound Profile set to Vibrate", android.widget.Toast.LENGTH_SHORT).show()
+            Pair(android.media.AudioManager.RINGER_MODE_VIBRATE, "Vibrate")
         }
+        audioManager.ringerMode = newMode
         vibrateBriefly(context)
+        return profileName
     }
 
-    private fun executeChetakTask(context: android.content.Context) {
+    private fun executeQuickLaunchTask(context: android.content.Context) {
         try {
             val bluetoothAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
             if (bluetoothAdapter != null && !bluetoothAdapter.isEnabled) {
                 bluetoothAdapter.enable()
-                postEvent(CapsuleEvent.SystemToggle(id = "bluetooth_toggle", name = "Bluetooth", isEnabled = true))
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
-        android.widget.Toast.makeText(context, "Chetak Task: Bluetooth enabled, launching app in 2s...", android.widget.Toast.LENGTH_SHORT).show()
         vibrateBriefly(context)
 
         scope.launch {
-            delay(2000)
+            delay(1000)
             val pm = context.packageManager
             val packagesToTry = listOf(
-                "com.bajajauto.chetak",
-                "com.piyush.oto",
                 "com.google.android.apps.youtube.music",
+                "com.spotify.music",
+                "com.piyush.oto",
+                "com.amazon.mp3",
+                "com.apple.android.music",
+                "com.jio.media.jiobeats",
                 "com.android.music",
                 "com.google.android.music"
             )
@@ -832,16 +938,19 @@ object CapsuleStateManager {
                 }
             }
             try {
-                val marketIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                    data = android.net.Uri.parse("market://search?q=Oto Music")
+                val musicIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                    addCategory(android.content.Intent.CATEGORY_APP_MUSIC)
                     addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                context.startActivity(marketIntent)
+                context.startActivity(musicIntent)
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "Could not open music app", android.widget.Toast.LENGTH_SHORT).show()
+                // Ignore
             }
         }
     }
+
+    fun executeWristWatchTask(context: android.content.Context) = executeSoundProfileTask(context)
+    fun executeChetakTask(context: android.content.Context) = executeQuickLaunchTask(context)
 
     private fun vibrateBriefly(context: android.content.Context) {
         try {
