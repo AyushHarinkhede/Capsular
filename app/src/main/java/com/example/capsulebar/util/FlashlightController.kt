@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraManager
 import android.os.Build
+import com.example.capsulebar.data.CapsuleStateManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,11 +20,12 @@ object FlashlightController {
     private val _isSosActiveFlow = MutableStateFlow(false)
     val isSosActiveFlow: StateFlow<Boolean> = _isSosActiveFlow.asStateFlow()
 
+    private var wasFlashlightOnBeforeSos: Boolean = false
     private var sosJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     fun turnOn(context: Context, intensity: Float) {
-        stopSos()
+        stopSos(context)
         val coerced = intensity.coerceIn(0.1f, 1.0f)
         _intensityFlow.value = coerced
         isFlashlightOn = true
@@ -31,8 +33,9 @@ object FlashlightController {
     }
 
     fun turnOff(context: Context) {
-        stopSos()
+        stopSos(context)
         isFlashlightOn = false
+        wasFlashlightOnBeforeSos = false
         applyTorchHardware(context, false, 0f)
     }
 
@@ -46,55 +49,72 @@ object FlashlightController {
 
     fun toggleSos(context: Context) {
         if (_isSosActiveFlow.value) {
-            stopSos()
-            if (isFlashlightOn) {
-                turnOn(context, _intensityFlow.value)
+            stopSos(context)
+            if (wasFlashlightOnBeforeSos) {
+                isFlashlightOn = true
+                applyTorchHardware(context, true, _intensityFlow.value)
             } else {
-                turnOff(context)
+                isFlashlightOn = false
+                applyTorchHardware(context, false, 0f)
+                CapsuleStateManager.removeEvent("toggle_flashlight")
             }
         } else {
             startSos(context)
         }
     }
 
-    private fun startSos(context: Context) {
-        stopSos()
+    fun startSos(context: Context) {
+        wasFlashlightOnBeforeSos = isFlashlightOn
+        sosJob?.cancel()
         _isSosActiveFlow.value = true
         isFlashlightOn = true
         sosJob = scope.launch {
             val dot = 150L
             val dash = 450L
             val gap = 150L
-            while (isActive) {
-                repeat(3) {
-                    applyTorchHardware(context, true, 1.0f)
-                    delay(dot)
-                    applyTorchHardware(context, false, 0f)
-                    delay(gap)
+            try {
+                while (isActive) {
+                    repeat(3) {
+                        applyTorchHardware(context, true, 1.0f)
+                        delay(dot)
+                        applyTorchHardware(context, false, 0f)
+                        delay(gap)
+                    }
+                    delay(300L)
+                    repeat(3) {
+                        applyTorchHardware(context, true, 1.0f)
+                        delay(dash)
+                        applyTorchHardware(context, false, 0f)
+                        delay(gap)
+                    }
+                    delay(300L)
+                    repeat(3) {
+                        applyTorchHardware(context, true, 1.0f)
+                        delay(dot)
+                        applyTorchHardware(context, false, 0f)
+                        delay(gap)
+                    }
+                    delay(1200L)
                 }
-                delay(300L)
-                repeat(3) {
-                    applyTorchHardware(context, true, 1.0f)
-                    delay(dash)
-                    applyTorchHardware(context, false, 0f)
-                    delay(gap)
-                }
-                delay(300L)
-                repeat(3) {
-                    applyTorchHardware(context, true, 1.0f)
-                    delay(dot)
-                    applyTorchHardware(context, false, 0f)
-                    delay(gap)
-                }
-                delay(1200L)
+            } finally {
+                applyTorchHardware(context, false, 0f)
             }
         }
     }
 
-    private fun stopSos() {
+    fun stopSos(context: Context? = null) {
         sosJob?.cancel()
         sosJob = null
         _isSosActiveFlow.value = false
+        if (context != null) {
+            applyTorchHardware(context, false, 0f)
+        }
+    }
+
+    fun onTorchModeChanged(enabled: Boolean) {
+        if (!_isSosActiveFlow.value) {
+            isFlashlightOn = enabled
+        }
     }
 
     private fun applyTorchHardware(context: Context, enable: Boolean, intensity: Float) {

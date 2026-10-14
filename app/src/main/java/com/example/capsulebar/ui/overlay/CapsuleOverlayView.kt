@@ -451,25 +451,10 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .then(
-                if (uiState.displayMode == DisplayMode.COLLAPSED) {
-                    Modifier.pointerInput(Unit) {
-                        detectVerticalDragGestures { change, dragAmount ->
-                            change.consume()
-                            if (dragAmount > 20f) {
-                                com.example.capsulebar.service.CapsuleAccessibilityService.expandNotificationShade()
-                            }
-                        }
-                    }
-                } else {
-                    Modifier
-                }
-            )
+        modifier = Modifier.fillMaxSize()
     ) {
-        // Top status bar shield in EXPANDED or SPLIT mode: completely conceals system status bar & icons
-        if (uiState.displayMode == DisplayMode.EXPANDED || uiState.displayMode == DisplayMode.SPLIT) {
+        // Top status bar shield in EXPANDED mode: completely conceals system status bar & icons
+        if (uiState.displayMode == DisplayMode.EXPANDED) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -479,6 +464,11 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         }
         // Outside backdrop tap to collapse when expanded
         if (uiState.displayMode == DisplayMode.EXPANDED) {
+            var backdropActive by remember(uiState.displayMode) { mutableStateOf(false) }
+            LaunchedEffect(uiState.displayMode) {
+                kotlinx.coroutines.delay(280)
+                backdropActive = true
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -486,8 +476,10 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                         indication = null
                     ) {
-                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
-                        CapsuleStateManager.collapseToCompact()
+                        if (backdropActive && settings.hideWhenTouchingOutside) {
+                            com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                            CapsuleStateManager.collapseToCompact()
+                        }
                     }
             )
         }
@@ -546,41 +538,36 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                     }
                 )
                 // ── ROCK-SOLID TAP TO EXPAND & DRAG-UP TO COLLAPSE ──
-                .then(
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null
+                ) {
                     if (uiState.displayMode != DisplayMode.EXPANDED) {
-                        Modifier.clickable(
-                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            com.example.capsulebar.service.HapticSoundManager.playCapsuleTap()
-                            com.example.capsulebar.service.HapticSoundManager.playExpand()
-                            CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
-                            hintJob?.cancel()
-                            hintJob = scope.launch {
-                                scaleAnim.animateTo(0.94f, tween(45))
-                                scaleAnim.animateTo(1.03f, tween(55))
-                                scaleAnim.animateTo(1.00f, spring(dampingRatio = 0.46f, stiffness = 400f))
-                            }
+                        com.example.capsulebar.service.HapticSoundManager.playCapsuleTap()
+                        com.example.capsulebar.service.HapticSoundManager.playExpand()
+                        CapsuleStateManager.setDisplayMode(DisplayMode.EXPANDED)
+                        hintJob?.cancel()
+                        hintJob = scope.launch {
+                            scaleAnim.animateTo(0.94f, tween(45))
+                            scaleAnim.animateTo(1.03f, tween(55))
+                            scaleAnim.animateTo(1.00f, spring(dampingRatio = 0.46f, stiffness = 400f))
                         }
                     } else {
-                        Modifier
-                            .clickable(
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                indication = null
-                            ) {
-                                CapsuleStateManager.keepExpandedAlive()
-                            }
-                            .pointerInput(Unit) {
-                                detectVerticalDragGestures { change, dragAmount ->
-                                    change.consume()
-                                    if (dragAmount < -8f) {
-                                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
-                                        CapsuleStateManager.collapseToCompact()
-                                    }
-                                }
-                            }
+                        CapsuleStateManager.keepExpandedAlive()
                     }
-                )
+                }
+                .pointerInput(uiState.displayMode) {
+                    if (uiState.displayMode == DisplayMode.EXPANDED) {
+                        kotlinx.coroutines.delay(280L)
+                        detectVerticalDragGestures { change, dragAmount ->
+                            if (dragAmount < -50f) {
+                                change.consume()
+                                com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                                CapsuleStateManager.collapseToCompact()
+                            }
+                        }
+                    }
+                }
                 .padding(horizontal = if (uiState.displayMode == DisplayMode.EXPANDED) 16.dp else 8.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -827,9 +814,19 @@ private fun CollapsedBubbleContent(
                     )
                 }
                 is CapsuleEvent.Music -> {
-                    if (event.albumArt != null) {
+                    val albumArtBitmap = remember(event.albumArt) {
+                        val art = event.albumArt
+                        if (art != null && !art.isRecycled) {
+                            try {
+                                art.asImageBitmap()
+                            } catch (_: Throwable) {
+                                null
+                            }
+                        } else null
+                    }
+                    if (albumArtBitmap != null) {
                         Image(
-                            bitmap = event.albumArt.asImageBitmap(),
+                            bitmap = albumArtBitmap,
                             contentDescription = null,
                             modifier = Modifier
                                 .size(20.dp)
@@ -1075,9 +1072,19 @@ private fun CollapsedBubbleContent(
                         )
                     }
                     is CapsuleEvent.Music -> {
-                        if (event.albumArt != null) {
+                        val albumArtBitmap = remember(event.albumArt) {
+                            val art = event.albumArt
+                            if (art != null && !art.isRecycled) {
+                                try {
+                                    art.asImageBitmap()
+                                } catch (_: Throwable) {
+                                    null
+                                }
+                            } else null
+                        }
+                        if (albumArtBitmap != null) {
                             Image(
-                                bitmap = event.albumArt.asImageBitmap(),
+                                bitmap = albumArtBitmap,
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(20.dp)
@@ -1782,17 +1789,13 @@ private fun ExpandedCard(
     val scope = rememberCoroutineScope()
     val uiState by CapsuleStateManager.uiState.collectAsStateWithLifecycle()
 
-    // ── CONTENT FADE-IN DELAY ─────────────────────────────────────────────────
-    var contentVisible by remember { mutableStateOf(false) }
+    // ── CONTENT VISIBILITY ───────────────────────────────────────────────────
+    var contentVisible by remember { mutableStateOf(true) }
     val contentAlpha by animateFloatAsState(
         targetValue = if (contentVisible) 1f else 0f,
-        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        animationSpec = tween(150, easing = FastOutSlowInEasing),
         label = "contentAlpha"
     )
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(115)
-        contentVisible = true
-    }
 
     Box(
         modifier = Modifier
@@ -1803,16 +1806,6 @@ private fun ExpandedCard(
                     while (true) {
                         awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
                         CapsuleStateManager.keepExpandedAlive()
-                    }
-                }
-            }
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    val dy = dragAmount.y
-                    if (dy < -8f) {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        CapsuleStateManager.collapseToCompact()
                     }
                 }
             }
@@ -1911,40 +1904,55 @@ private fun ExpandedCard(
 
                 Box(
                     modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f))
+                        .size(36.dp)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            com.example.capsulebar.service.HapticSoundManager.playCollapse()
                             CapsuleStateManager.collapseToCompact()
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowUp,
-                        contentDescription = "Minimize",
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(13.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.KeyboardArrowUp,
+                            contentDescription = "Minimize",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.width(5.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Box(
                     modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.08f))
+                        .size(36.dp)
                         .clickable {
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            com.example.capsulebar.service.HapticSoundManager.playCollapse()
                             CapsuleStateManager.removeEvent(event.id)
+                            CapsuleStateManager.collapseToCompact()
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "Dismiss",
-                        tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(11.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Dismiss",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
                 }
 
                 if (cameraPosition == "Right") {
@@ -2404,10 +2412,20 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
     var showRemainingTime by remember { mutableStateOf(false) }
     var showVolumeControl by remember { mutableStateOf(false) }
     var musicVolume by remember {
-        mutableStateOf(audioManager.getStreamVolume(AudioManager.STREAM_MUSIC))
+        mutableStateOf(
+            try {
+                audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            } catch (e: Exception) {
+                0
+            }
+        )
     }
     val maxMusicVolume = remember {
-        audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        try {
+            audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+        } catch (e: Exception) {
+            15
+        }
     }
 
     // Dynamic accent color per streaming app
@@ -2461,9 +2479,19 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
                 },
             contentAlignment = Alignment.Center
         ) {
-            if (settings.showImages && event.albumArt != null) {
+            val albumArtBitmap = remember(event.albumArt) {
+                val art = event.albumArt
+                if (art != null && !art.isRecycled) {
+                    try {
+                        art.asImageBitmap()
+                    } catch (_: Throwable) {
+                        null
+                    }
+                } else null
+            }
+            if (albumArtBitmap != null) {
                 Image(
-                    bitmap = event.albumArt.asImageBitmap(),
+                    bitmap = albumArtBitmap,
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -2479,7 +2507,19 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
 
         Spacer(Modifier.width(10.dp))
 
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    com.example.capsulebar.service.CapsuleNotificationListener.openNotification(
+                        context,
+                        event.id,
+                        event.packageName
+                    )
+                    CapsuleStateManager.collapseToCompact()
+                }
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (event.isLiveStream) {
                     Box(
@@ -2577,7 +2617,9 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
                     .clickable {
                         CapsuleStateManager.keepExpandedAlive()
                         val newVol = (musicVolume - 1).coerceAtLeast(0)
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                        try {
+                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                        } catch (_: Exception) {}
                         musicVolume = newVol
                         com.example.capsulebar.service.HapticSoundManager.playClick()
                     }
@@ -2593,7 +2635,9 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
                     onSeek = { ratio ->
                         CapsuleStateManager.keepExpandedAlive()
                         val newVol = (ratio * maxMusicVolume).toInt().coerceIn(0, maxMusicVolume)
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                        try {
+                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                        } catch (_: Exception) {}
                         musicVolume = newVol
                     }
                 )
@@ -2608,7 +2652,9 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
                     .clickable {
                         CapsuleStateManager.keepExpandedAlive()
                         val newVol = (musicVolume + 1).coerceAtMost(maxMusicVolume)
-                        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                        try {
+                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                        } catch (_: Exception) {}
                         musicVolume = newVol
                         com.example.capsulebar.service.HapticSoundManager.playClick()
                     }
@@ -2908,7 +2954,11 @@ private fun MusicExpandedCard(event: CapsuleEvent.Music) {
             onClick = {
                 CapsuleStateManager.keepExpandedAlive()
                 com.example.capsulebar.service.HapticSoundManager.playClick()
-                musicVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                musicVolume = try {
+                    audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                } catch (_: Exception) {
+                    musicVolume
+                }
                 showVolumeControl = !showVolumeControl
             }
         )
@@ -4507,6 +4557,10 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
     val isLowPower = nameLower.contains("low power") || nameLower.contains("battery saver")
     val isMobileData = nameLower.contains("data") || nameLower.contains("cellular")
 
+    val intensity by FlashlightController.intensityFlow.collectAsStateWithLifecycle(initialValue = 0.5f)
+    val isSosActive by FlashlightController.isSosActiveFlow.collectAsStateWithLifecycle(initialValue = false)
+    val isTorchOrSosOn = if (isFlashlight) (event.isEnabled || isSosActive || FlashlightController.isFlashlightOn) else event.isEnabled
+
     val icon = when {
         isWifi -> Icons.Rounded.Wifi
         isFlashlight -> Icons.Rounded.FlashlightOn
@@ -4520,8 +4574,8 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
         isLowPower -> Icons.Rounded.BatterySaver
         else -> Icons.Rounded.Settings
     }
-    val toggleColor = if (event.isEnabled) Color(0xFF81C784) else Color.White.copy(alpha = 0.5f)
-    val toggleBg = if (event.isEnabled) Color(0x22C4E1A5) else Color(0x11FFFFFF)
+    val toggleColor = if (isTorchOrSosOn) Color(0xFF81C784) else Color.White.copy(alpha = 0.5f)
+    val toggleBg = if (isTorchOrSosOn) Color(0x22C4E1A5) else Color(0x11FFFFFF)
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -4539,9 +4593,9 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                             CapsuleStateManager.keepExpandedAlive()
                             if (isFlashlight) {
-                                val nextState = !event.isEnabled
+                                val nextState = !isTorchOrSosOn
                                 if (nextState) {
-                                    FlashlightController.turnOn(context, FlashlightController.intensityFlow.value)
+                                    FlashlightController.turnOn(context, intensity)
                                     CapsuleStateManager.postEvent(event.copy(id = "toggle_flashlight", isEnabled = true, durationMs = 0))
                                 } else {
                                     FlashlightController.turnOff(context)
@@ -4560,9 +4614,9 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
                 Column {
                     Text(event.name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     val statusSubtitle = when {
-                        isFlashlight && event.isEnabled -> {
-                            val curInt = (FlashlightController.intensityFlow.value * 100).toInt()
-                            if (FlashlightController.isSosActiveFlow.value) "SOS Strobe Active" else "Torch Active • $curInt%"
+                        isFlashlight && isTorchOrSosOn -> {
+                            val curInt = (intensity * 100).toInt()
+                            if (isSosActive) "SOS Strobe Active" else "Torch Active • $curInt%"
                         }
                         isWifi && event.isEnabled -> "Wi-Fi Active"
                         isBluetooth && event.isEnabled -> "Bluetooth Active"
@@ -4576,13 +4630,13 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
             }
 
             Switch(
-                checked = event.isEnabled,
+                checked = isTorchOrSosOn,
                 onCheckedChange = { nextState ->
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                     CapsuleStateManager.keepExpandedAlive()
                     if (isFlashlight) {
                         if (nextState) {
-                            FlashlightController.turnOn(context, FlashlightController.intensityFlow.value)
+                            FlashlightController.turnOn(context, intensity)
                             CapsuleStateManager.postEvent(event.copy(id = "toggle_flashlight", isEnabled = true, durationMs = 0))
                         } else {
                             FlashlightController.turnOff(context)
@@ -4601,10 +4655,8 @@ private fun SystemToggleExpandedCard(event: CapsuleEvent.SystemToggle, context: 
         }
 
         // ── FLASHLIGHT CONTROLS ──
-        if (isFlashlight && event.isEnabled) {
+        if (isFlashlight && isTorchOrSosOn) {
             Spacer(Modifier.height(10.dp))
-            val intensity by FlashlightController.intensityFlow.collectAsStateWithLifecycle(initialValue = 0.5f)
-            val isSosActive by FlashlightController.isSosActiveFlow.collectAsStateWithLifecycle(initialValue = false)
 
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
@@ -5857,13 +5909,46 @@ private fun QuickAccessAppsBar(
             .padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "CAPSULE QUICK HUB",
-            color = Color.White.copy(alpha = 0.6f),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 1.sp
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "CAPSULE QUICK HUB",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.sp
+            )
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clickable {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        com.example.capsulebar.service.HapticSoundManager.playCollapse()
+                        CapsuleStateManager.collapseToCompact()
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.KeyboardArrowUp,
+                        contentDescription = "Minimize",
+                        tint = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+            }
+        }
         Spacer(Modifier.height(10.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),

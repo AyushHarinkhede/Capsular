@@ -70,6 +70,11 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     private val torchCallback = object : CameraManager.TorchCallback() {
         override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
             if (!settings.isSystemToggleEnabled) return
+            // Ignore rapid hardware toggles while SOS strobe is actively pulsing
+            if (com.example.capsulebar.util.FlashlightController.isSosActiveFlow.value) return
+
+            com.example.capsulebar.util.FlashlightController.onTorchModeChanged(enabled)
+
             if (enabled) {
                 CapsuleStateManager.postEvent(
                     CapsuleEvent.SystemToggle(
@@ -447,7 +452,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     val state = CapsuleStateManager.uiState.value
                     if (state.displayMode == DisplayMode.EXPANDED) {
                         CapsuleStateManager.setInputFocused(false)
-                        CapsuleStateManager.toggleExpanded()
+                        CapsuleStateManager.collapseToCompact()
                     }
                 }
                 false
@@ -532,32 +537,37 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             hideJob?.cancel()
             hideJob = null
 
+            val isExpanded = state.displayMode == DisplayMode.EXPANDED
             params.width = WindowManager.LayoutParams.MATCH_PARENT
             params.gravity = Gravity.TOP or Gravity.START
             params.x = 0
             params.y = 0
 
             val extraHeightDp = (settings.heightDp - 36).coerceAtLeast(0).toFloat()
-            val contentHeightDp = when {
-                state.displayMode == DisplayMode.EXPANDED -> 365f + extraHeightDp
-                isCalibrating -> (settings.heightDp + 48f)
-                else -> (settings.heightDp + 36f)
-            }
             val yOffsetPx = if (settings.showAsNotch) 0 else settings.yOffset
-            params.height = (contentHeightDp * density).toInt() + yOffsetPx
+            params.height = if (isExpanded) {
+                WindowManager.LayoutParams.MATCH_PARENT
+            } else {
+                val contentHeightDp = when {
+                    isCalibrating -> (settings.heightDp + 48f)
+                    else -> (settings.heightDp + 36f)
+                }
+                (contentHeightDp * density).toInt() + yOffsetPx
+            }
 
-            val isBigOrDouble = state.displayMode == DisplayMode.EXPANDED || state.displayMode == DisplayMode.SPLIT
-
-            val needsKeyboardFocus = state.displayMode == DisplayMode.EXPANDED && CapsuleStateManager.isInputFocused.value
+            val needsKeyboardFocus = isExpanded && CapsuleStateManager.isInputFocused.value
             val focusFlag = if (needsKeyboardFocus) 0 else WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-            val fullscreenFlag = if (isBigOrDouble) WindowManager.LayoutParams.FLAG_FULLSCREEN else 0
             val baseFlags = focusFlag or
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                    WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    fullscreenFlag
+                    if (!isExpanded) {
+                        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                    } else {
+                        0
+                    }
             params.flags = if (isCalibrating) {
                 baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             } else {
@@ -573,30 +583,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             }
 
             @Suppress("DEPRECATION")
-            view.systemUiVisibility = if (isBigOrDouble) {
-                View.SYSTEM_UI_FLAG_FULLSCREEN or
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            } else {
-                View.SYSTEM_UI_FLAG_VISIBLE
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                view.post {
-                    try {
-                        val insetsController = view.windowInsetsController
-                        if (isBigOrDouble) {
-                            insetsController?.hide(android.view.WindowInsets.Type.statusBars())
-                            insetsController?.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                        } else {
-                            insetsController?.show(android.view.WindowInsets.Type.statusBars())
-                        }
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
-                }
-            }
+            view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
 
             try {
                 if (view.isAttachedToWindow) {

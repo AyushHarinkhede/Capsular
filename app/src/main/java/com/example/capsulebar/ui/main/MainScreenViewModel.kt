@@ -624,10 +624,25 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     }
 
     fun triggerMockMusicPlayback() {
+        val mockBitmap = try {
+            val bmp = android.graphics.Bitmap.createBitmap(128, 128, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bmp)
+            val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                color = android.graphics.Color.rgb(186, 104, 200)
+            }
+            canvas.drawColor(android.graphics.Color.rgb(30, 30, 30))
+            paint.color = android.graphics.Color.rgb(156, 39, 176)
+            canvas.drawCircle(64f, 64f, 48f, paint)
+            bmp
+        } catch (e: Exception) {
+            null
+        }
         CapsuleStateManager.postEvent(
             CapsuleEvent.Music(
                 title = "Acoustic Melody",
                 artist = "Talented Musician",
+                album = "Cosmic Dreams",
+                albumArt = mockBitmap,
                 isPlaying = true,
                 duration = 200000L,
                 position = 45000L,

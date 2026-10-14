@@ -590,11 +590,13 @@ object CapsuleStateManager {
 
         if (prevMode == DisplayMode.EXPANDED && (mode == DisplayMode.COLLAPSED || mode == DisplayMode.SPLIT || mode == DisplayMode.HIDDEN)) {
             com.example.capsulebar.service.HapticSoundManager.playCollapse()
+            // DO NOT kill active events just because user collapsed the expanded popup.
+            // If the event originally had an auto-dismiss duration (transient notification), resume its remaining time.
             val mainEv = _uiState.value.mainEvent
             if (mainEv != null && mainEv.durationMs > 0) {
                 autoDismissJobs[mainEv.id]?.cancel()
                 autoDismissJobs[mainEv.id] = scope.launch {
-                    delay(getCompactDurationMs())
+                    delay(mainEv.durationMs)
                     removeEvent(mainEv.id)
                 }
             }
@@ -647,7 +649,8 @@ object CapsuleStateManager {
     private fun recalculateState() {
         val hideInForeground = prefs?.getBoolean("hide_in_foreground", true) ?: true
         val foregroundPkg = currentForegroundPackage
-        val eventsToConsider = if (hideInForeground && !foregroundPkg.isNullOrEmpty()) {
+        val isCurrentlyExpanded = _uiState.value.displayMode == DisplayMode.EXPANDED
+        val eventsToConsider = if (hideInForeground && !foregroundPkg.isNullOrEmpty() && !isCurrentlyExpanded) {
             activeEvents.values.filter { event ->
                 val pkg = when (event) {
                     is CapsuleEvent.Notification -> event.packageName
@@ -688,7 +691,7 @@ object CapsuleStateManager {
                 _uiState.value = CapsuleUiState(
                     mainEvent = null,
                     splitEvent = null,
-                    displayMode = DisplayMode.COLLAPSED,
+                    displayMode = if (isCurrentlyExpanded) DisplayMode.EXPANDED else DisplayMode.COLLAPSED,
                     isHidden = false
                 )
             } else {

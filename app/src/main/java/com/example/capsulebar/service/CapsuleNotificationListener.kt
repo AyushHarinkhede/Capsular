@@ -958,10 +958,35 @@ class CapsuleNotificationListener : NotificationListenerService() {
         val position = recentSeek ?: (state?.position ?: 0L).coerceAtLeast(0L)
         val playbackSpeed = speedOverrides[packageName] ?: (state?.playbackSpeed?.takeIf { it > 0f } ?: 1.0f)
 
-        val albumArt = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
+        val rawAlbumArt = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
             ?: sbn?.notification?.largeIcon
+
+        val albumArt = if (rawAlbumArt != null && !rawAlbumArt.isRecycled) {
+            try {
+                val maxDim = 512
+                val srcW = rawAlbumArt.width
+                val srcH = rawAlbumArt.height
+                val safeConfigBitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && rawAlbumArt.config == Bitmap.Config.HARDWARE) {
+                    rawAlbumArt.copy(Bitmap.Config.ARGB_8888, false)
+                } else {
+                    rawAlbumArt
+                }
+                if (safeConfigBitmap != null && (srcW > maxDim || srcH > maxDim)) {
+                    val ratio = maxDim.toFloat() / maxOf(srcW, srcH)
+                    val targetW = (srcW * ratio).toInt().coerceAtLeast(1)
+                    val targetH = (srcH * ratio).toInt().coerceAtLeast(1)
+                    Bitmap.createScaledBitmap(safeConfigBitmap, targetW, targetH, true)
+                } else {
+                    safeConfigBitmap
+                }
+            } catch (_: Exception) {
+                null
+            }
+        } else {
+            null
+        }
 
         // Extract custom actions from both MediaSession PlaybackState and Media Notification
         val customActionsList = mutableListOf<CapsuleEvent.MediaCustomActionUi>()
@@ -1402,6 +1427,19 @@ class CapsuleNotificationListener : NotificationListenerService() {
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
+                }
+            }
+            if (eventId == "music" || pkg.isNotEmpty()) {
+                val mediaIntents = listOf(
+                    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC),
+                    Intent("android.intent.action.MUSIC_PLAYER")
+                )
+                for (intent in mediaIntents) {
+                    try {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        return true
+                    } catch (_: Exception) {}
                 }
             }
             return false
