@@ -105,6 +105,9 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _maxPopupWidthPercent = MutableStateFlow(settings.maxPopupWidthPercent)
     val maxPopupWidthPercent: StateFlow<Int> = _maxPopupWidthPercent.asStateFlow()
 
+    private val _expandedHeightScale = MutableStateFlow(settings.expandedHeightScale)
+    val expandedHeightScale: StateFlow<Int> = _expandedHeightScale.asStateFlow()
+
     private val _edgeRoundingPercent = MutableStateFlow(settings.edgeRoundingPercent)
     val edgeRoundingPercent: StateFlow<Int> = _edgeRoundingPercent.asStateFlow()
 
@@ -273,6 +276,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             "expanded_duration_sec" -> _expandedDurationSec.value = settings.expandedDurationSec
             "dismiss_delay_sec" -> _dismissDelaySec.value = settings.dismissDelaySec
             "max_popup_width_percent" -> _maxPopupWidthPercent.value = settings.maxPopupWidthPercent
+            "expanded_height_scale" -> _expandedHeightScale.value = settings.expandedHeightScale
             "edge_rounding_percent" -> _edgeRoundingPercent.value = settings.edgeRoundingPercent
             "show_as_notch" -> _showAsNotch.value = settings.showAsNotch
             "add_background" -> _addBackground.value = settings.addBackground
@@ -993,6 +997,30 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     fun updateGlassBlackTint(value: Int) {
         settings.glassBlackTint = value
         _glassBlackTint.value = value
+    }
+
+    fun updateExpandedHeightScale(value: Int) {
+        settings.expandedHeightScale = value
+        _expandedHeightScale.value = value
+    }
+
+    fun testLiveExpand() {
+        if (CapsuleStateManager.uiState.value.displayMode == com.example.capsulebar.data.DisplayMode.EXPANDED) {
+            CapsuleStateManager.collapseToCompact()
+        } else {
+            CapsuleStateManager.postEvent(
+                CapsuleEvent.Notification(
+                    id = "test_expand_live",
+                    packageName = "com.example.capsulebar",
+                    appName = "Capsule Bar",
+                    title = "Expanded Card Preview",
+                    text = "Live preview of big capsule size & layout",
+                    priority = 999,
+                    durationMs = 0
+                )
+            )
+            CapsuleStateManager.setDisplayMode(com.example.capsulebar.data.DisplayMode.EXPANDED)
+        }
     }
 }
 

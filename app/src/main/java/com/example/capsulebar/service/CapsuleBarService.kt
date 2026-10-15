@@ -297,7 +297,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" ||
             key == "is_calibration_mode" || key == "is_position_locked" || key == "camera_position" ||
             key == "camera_width_dp" || key == "show_as_notch" || key == "split_position" ||
-            key == "edge_rounding_percent" || key == "max_popup_width_percent" ||
+            key == "edge_rounding_percent" || key == "max_popup_width_percent" || key == "expanded_height_scale" ||
             key == "is_glass_effect_enabled" || key == "glass_blur_radius" ||
             key == "glass_edge_transparency" || key == "glass_effect_area" || key == "glass_black_tint" ||
             key == "show_in_landscape" || key == "show_always" || key == "show_on_lockscreen"

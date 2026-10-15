@@ -284,4 +284,8 @@ class CapsuleSettings(context: Context) {
     var glassBlackTint: Int
         get() = prefs.getInt("glass_black_tint", 70)
         set(value) = prefs.edit().putInt("glass_black_tint", value).apply()
+
+    var expandedHeightScale: Int
+        get() = prefs.getInt("expanded_height_scale", 100)
+        set(value) = prefs.edit().putInt("expanded_height_scale", value).apply()
 }

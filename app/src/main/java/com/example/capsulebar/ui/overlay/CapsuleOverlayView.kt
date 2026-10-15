@@ -166,6 +166,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     var glassEdgeTransparency by remember { mutableStateOf(settings.glassEdgeTransparency) }
     var glassEffectArea by remember { mutableStateOf(settings.glassEffectArea) }
     var glassBlackTint by remember { mutableStateOf(settings.glassBlackTint) }
+    var expandedHeightScale by remember { mutableStateOf(settings.expandedHeightScale) }
     var showInLandscape by remember { mutableStateOf(settings.showInLandscape) }
 
     DisposableEffect(settings) {
@@ -187,6 +188,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 "auto_color" -> autoColor = settings.autoColor
                 "use_app_colors" -> useAppColors = settings.useAppColors
                 "max_popup_width_percent" -> maxPopupWidthPercent = settings.maxPopupWidthPercent
+                "expanded_height_scale" -> expandedHeightScale = settings.expandedHeightScale
                 "quick_animations" -> quickAnimations = settings.quickAnimations
                 "premium_animations" -> premiumAnimations = settings.premiumAnimations
                 "split_position" -> splitPosition = settings.splitPosition

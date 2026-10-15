@@ -141,6 +141,7 @@ fun MainScreen(
 
     // Screen Option State Collections
     val maxPopupWidthPercent by viewModel.maxPopupWidthPercent.collectAsStateWithLifecycle()
+    val expandedHeightScale by viewModel.expandedHeightScale.collectAsStateWithLifecycle()
     val edgeRoundingPercent by viewModel.edgeRoundingPercent.collectAsStateWithLifecycle()
     val showAsNotch by viewModel.showAsNotch.collectAsStateWithLifecycle()
     val addBackground by viewModel.addBackground.collectAsStateWithLifecycle()
@@ -327,6 +328,7 @@ fun MainScreen(
                 heightDp = heightDp,
                 edgeRoundingPercent = edgeRoundingPercent,
                 maxPopupWidthPercent = maxPopupWidthPercent,
+                expandedHeightScale = expandedHeightScale,
                 cameraPosition = cameraPosition,
                 cameraWidthDp = cameraWidthDp,
                 isCalibrationMode = isCalibrationMode,
@@ -341,6 +343,8 @@ fun MainScreen(
                 onHeightChanged = { viewModel.updateHeightDp(it) },
                 onEdgeRoundingChanged = { viewModel.updateEdgeRoundingPercent(it) },
                 onMaxPopupWidthChanged = { viewModel.updateMaxPopupWidthPercent(it) },
+                onExpandedHeightScaleChanged = { viewModel.updateExpandedHeightScale(it) },
+                onTestLiveExpand = { viewModel.testLiveExpand() },
                 onCameraPositionChanged = { viewModel.updateCameraPosition(it) },
                 onCameraWidthChanged = { viewModel.updateCameraWidthDp(it) },
                 onToggleCalibration = { viewModel.toggleCalibrationMode(it) },
@@ -355,7 +359,8 @@ fun MainScreen(
                     viewModel.updateHeightDp(36)
                     viewModel.updateCameraWidthDp(28)
                     viewModel.updateEdgeRoundingPercent(60)
-                    viewModel.updateMaxPopupWidthPercent(100)
+                    viewModel.updateMaxPopupWidthPercent(95)
+                    viewModel.updateExpandedHeightScale(100)
                 }
             )
         }
@@ -928,6 +933,7 @@ fun PositionSection(
     heightDp: Int,
     edgeRoundingPercent: Int,
     maxPopupWidthPercent: Int,
+    expandedHeightScale: Int,
     cameraPosition: String,
     cameraWidthDp: Int,
     isCalibrationMode: Boolean,
@@ -942,6 +948,8 @@ fun PositionSection(
     onHeightChanged: (Int) -> Unit,
     onEdgeRoundingChanged: (Int) -> Unit,
     onMaxPopupWidthChanged: (Int) -> Unit,
+    onExpandedHeightScaleChanged: (Int) -> Unit,
+    onTestLiveExpand: () -> Unit,
     onCameraPositionChanged: (String) -> Unit,
     onCameraWidthChanged: (Int) -> Unit,
     onToggleCalibration: (Boolean) -> Unit,
@@ -1622,6 +1630,429 @@ fun PositionSection(
                 )
             }
 
+            // ── EXPANDED BIG CAPSULE SIZE (BADA CAPSULE CALIBRATION & LIVE PREVIEW) ──
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+                ),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Header Row with Title and Live Screen Test Button
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.OpenInFull,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = "Big Capsule Size (Expanded)",
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Adjust card size when notch is tapped",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+
+                        // Test on real screen button
+                        FilledTonalButton(
+                            onClick = {
+                                com.example.capsulebar.service.HapticSoundManager.playClick()
+                                onTestLiveExpand()
+                            },
+                            shape = CircleShape,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            ),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier.height(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PlayArrow,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(Modifier.width(3.dp))
+                            Text("Test Live", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Live Telemetry Badge
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF00E676))
+                                )
+                                Text(
+                                    text = "LIVE SIZE",
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                            Text(
+                                text = "Width: ${maxPopupWidthPercent}% • Height Scale: ${expandedHeightScale}%",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // LIVE MINI-SCREEN PREVIEW BOX
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(130.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFF0C0D14))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f), RoundedCornerShape(16.dp)),
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        // Punch Hole Mock
+                        val cameraAlignment = when (cameraPosition) {
+                            "LEFT" -> Alignment.TopStart
+                            "RIGHT" -> Alignment.TopEnd
+                            else -> Alignment.TopCenter
+                        }
+                        val cameraPad = when (cameraPosition) {
+                            "LEFT" -> Modifier.padding(start = 20.dp, top = 5.dp)
+                            "RIGHT" -> Modifier.padding(end = 20.dp, top = 5.dp)
+                            else -> Modifier.padding(top = 5.dp)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .then(cameraPad),
+                            contentAlignment = cameraAlignment
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(9.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black)
+                                    .border(1.dp, Color(0xFF333333), CircleShape)
+                            )
+                        }
+
+                        // Scaled Big Capsule Representation
+                        val previewWidthFraction = (maxPopupWidthPercent / 100f).coerceIn(0.6f, 0.98f)
+                        val previewHeightDp = (65f * (expandedHeightScale / 100f)).coerceIn(45f, 105f).dp
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(previewWidthFraction)
+                                .height(previewHeightDp)
+                                .padding(top = 8.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFF1E1E28).copy(alpha = 0.92f))
+                                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(18.dp)
+                                                .clip(RoundedCornerShape(5.dp))
+                                                .background(MaterialTheme.colorScheme.primary),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.MusicNote,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.size(11.dp)
+                                            )
+                                        }
+                                        Column {
+                                            Text(
+                                                text = "Now Playing",
+                                                color = Color.White,
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1
+                                            )
+                                            Text(
+                                                text = "Dynamic Expanded Island",
+                                                color = Color.LightGray,
+                                                fontSize = 7.5.sp,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+
+                                    // Wave Bars
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        listOf(6, 12, 9, 14).forEach { barHeight ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(2.dp)
+                                                    .height(barHeight.dp)
+                                                    .clip(RoundedCornerShape(1.dp))
+                                                    .background(MaterialTheme.colorScheme.primary)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Rounded.SkipPrevious, null, tint = Color.LightGray, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(14.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Rounded.Pause, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(11.dp))
+                                    }
+                                    Spacer(Modifier.width(14.dp))
+                                    Icon(Icons.Rounded.SkipNext, null, tint = Color.LightGray, modifier = Modifier.size(13.dp))
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "Live Scale Preview",
+                            color = Color.White.copy(alpha = 0.35f),
+                            fontSize = 8.5.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 3.dp)
+                        )
+                    }
+
+                    // 1. EXPANDED WIDTH ADJUSTMENT
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Expanded Width (Chaudai)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${maxPopupWidthPercent}% screen",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = {
+                                    val next = (maxPopupWidthPercent - 5).coerceIn(60, 100)
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                    onMaxPopupWidthChanged(next)
+                                },
+                                modifier = Modifier.size(32.dp),
+                                shape = CircleShape
+                            ) {
+                                Icon(Icons.Rounded.Remove, contentDescription = "Decrease Width", modifier = Modifier.size(16.dp))
+                            }
+
+                            Slider(
+                                value = maxPopupWidthPercent.toFloat(),
+                                onValueChange = { onMaxPopupWidthChanged(it.toInt()) },
+                                valueRange = 60f..100f,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            FilledTonalIconButton(
+                                onClick = {
+                                    val next = (maxPopupWidthPercent + 5).coerceIn(60, 100)
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                    onMaxPopupWidthChanged(next)
+                                },
+                                modifier = Modifier.size(32.dp),
+                                shape = CircleShape
+                            ) {
+                                Icon(Icons.Rounded.Add, contentDescription = "Increase Width", modifier = Modifier.size(16.dp))
+                            }
+                        }
+
+                        // Quick presets for Width
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(75 to "Compact 75%", 94 to "Standard 94%", 100 to "Edge 100%").forEach { (targetWidth, label) ->
+                                val isSel = maxPopupWidthPercent == targetWidth
+                                FilterChip(
+                                    selected = isSel,
+                                    onClick = {
+                                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                                        onMaxPopupWidthChanged(targetWidth)
+                                    },
+                                    label = { Text(label, fontSize = 10.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    // 2. EXPANDED HEIGHT SCALE ADJUSTMENT
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Expanded Height (Lambai / Unchai)",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${expandedHeightScale}% scale",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            FilledTonalIconButton(
+                                onClick = {
+                                    val next = (expandedHeightScale - 5).coerceIn(70, 140)
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                    onExpandedHeightScaleChanged(next)
+                                },
+                                modifier = Modifier.size(32.dp),
+                                shape = CircleShape
+                            ) {
+                                Icon(Icons.Rounded.Remove, contentDescription = "Decrease Height", modifier = Modifier.size(16.dp))
+                            }
+
+                            Slider(
+                                value = expandedHeightScale.toFloat(),
+                                onValueChange = { onExpandedHeightScaleChanged(it.toInt()) },
+                                valueRange = 70f..140f,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            FilledTonalIconButton(
+                                onClick = {
+                                    val next = (expandedHeightScale + 5).coerceIn(70, 140)
+                                    com.example.capsulebar.service.HapticSoundManager.playTick()
+                                    onExpandedHeightScaleChanged(next)
+                                },
+                                modifier = Modifier.size(32.dp),
+                                shape = CircleShape
+                            ) {
+                                Icon(Icons.Rounded.Add, contentDescription = "Increase Height", modifier = Modifier.size(16.dp))
+                            }
+                        }
+
+                        // Quick presets for Height
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(85 to "Compact 85%", 100 to "Standard 100%", 120 to "Spacious 120%").forEach { (targetScale, label) ->
+                                val isSel = expandedHeightScale == targetScale
+                                FilterChip(
+                                    selected = isSel,
+                                    onClick = {
+                                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                                        onExpandedHeightScaleChanged(targetScale)
+                                    },
+                                    label = { Text(label, fontSize = 10.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── COLLAPSIBLE FINE SLIDERS & POPUP GEOMETRY (In the same unified section) ──
             Surface(
                 shape = RoundedCornerShape(14.dp),
@@ -1742,7 +2173,17 @@ fun PositionSection(
                         valueText = "${maxPopupWidthPercent}%",
                         value = maxPopupWidthPercent.toFloat(),
                         onValueChange = { if (!isPositionLocked) onMaxPopupWidthChanged(it.toInt()) },
-                        valueRange = 50f..100f,
+                        valueRange = 60f..100f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add
+                    )
+
+                    SliderOptionRow(
+                        title = "Expanded Card Height Scale",
+                        valueText = "${expandedHeightScale}%",
+                        value = expandedHeightScale.toFloat(),
+                        onValueChange = { if (!isPositionLocked) onExpandedHeightScaleChanged(it.toInt()) },
+                        valueRange = 70f..140f,
                         decreaseIcon = Icons.Rounded.Remove,
                         increaseIcon = Icons.Rounded.Add
                     )
