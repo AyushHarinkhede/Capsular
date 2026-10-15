@@ -180,8 +180,43 @@
                 
                 <!-- Fixed Camera Lens Cutout (Removed as per user request) -->
 
-                <!-- Idle State Content -->
-                <div class="capsule-content content-idle"></div>
+                <!-- Idle State Content (Notch Capsule Quick Hub on Tap) -->
+                <div class="capsule-content content-idle">
+                  <div class="capsule-top-row">
+                    <div class="idle-leading">
+                      <span class="material-symbols-rounded idle-lens-icon">lens</span>
+                      <span class="idle-title expanded-only">Quick Hub</span>
+                    </div>
+                    <div class="idle-trailing expanded-only">
+                      <span class="idle-battery-badge"><span class="material-symbols-rounded">bolt</span> 85%</span>
+                    </div>
+                  </div>
+                  <!-- Expanded Controls for Idle (Quick Hub) -->
+                  <div class="expanded-only hub-details">
+                    <div class="hub-tiles-grid">
+                      <button class="hub-tile-btn hub-torch" aria-label="Toggle Flashlight">
+                        <span class="material-symbols-rounded">flashlight_on</span>
+                        <span>Torch</span>
+                      </button>
+                      <button class="hub-tile-btn hub-wifi active" aria-label="Toggle Wi-Fi">
+                        <span class="material-symbols-rounded">wifi</span>
+                        <span>Wi-Fi</span>
+                      </button>
+                      <button class="hub-tile-btn hub-sound" aria-label="Cycle Sound Mode">
+                        <span class="material-symbols-rounded">volume_up</span>
+                        <span class="sound-mode-label">Sound</span>
+                      </button>
+                      <button class="hub-tile-btn hub-timer" aria-label="Open Timer">
+                        <span class="material-symbols-rounded">timer</span>
+                        <span>Timer</span>
+                      </button>
+                      <button class="hub-tile-btn hub-shot" aria-label="Take Screenshot">
+                        <span class="material-symbols-rounded">screenshot</span>
+                        <span>Shot</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
                 <!-- Music State Content -->
                 <div class="capsule-content content-music">
@@ -271,7 +306,7 @@
                   <div class="expanded-only nfc-expanded">
                     <p class="nfc-info">Triggered by: <strong>NFC Smart Tag</strong></p>
                     <p class="nfc-action-desc">Automation: Quick Profile & Audio Action</p>
-                    <button class="btn-action dismiss-nfc">Done</button>
+                    <button class="btn-action dismiss-nfc"><span class="material-symbols-rounded">check</span> Done</button>
                   </div>
                 </div>
 
@@ -289,9 +324,9 @@
                   <!-- Expanded Controls -->
                   <div class="expanded-only timer-controls">
                     <div class="control-buttons">
-                      <button class="btn-action timer-lap">Lap</button>
+                      <button class="btn-action timer-lap"><span class="material-symbols-rounded">flag</span> Lap</button>
                       <button class="btn-action timer-toggle"><span class="material-symbols-rounded">pause</span></button>
-                      <button class="btn-action timer-reset">Reset</button>
+                      <button class="btn-action timer-reset"><span class="material-symbols-rounded">restart_alt</span> Reset</button>
                     </div>
                   </div>
                 </div>
@@ -434,8 +469,8 @@
                   <div class="expanded-only battery_low-details">
                     <p class="battery_low-text">15% remaining. Enable Power Saver?</p>
                     <div class="battery_low-actions">
-                      <button class="btn-action saver-enable accept">Enable</button>
-                      <button class="btn-action saver-dismiss">Dismiss</button>
+                      <button class="btn-action saver-enable accept"><span class="material-symbols-rounded">battery_saver</span> Enable</button>
+                      <button class="btn-action saver-dismiss"><span class="material-symbols-rounded">close</span> Dismiss</button>
                     </div>
                   </div>
                 </div>
@@ -486,7 +521,7 @@
                   <div class="expanded-only wifi_connect-details">
                     <p class="wifi-stats">Connected • Speed: 150 Mbps</p>
                     <p class="wifi-security">Security: WPA3 Personal</p>
-                    <button class="btn-action wifi-disconnect reject">Disconnect</button>
+                    <button class="btn-action wifi-disconnect reject"><span class="material-symbols-rounded">wifi_off</span> Disconnect</button>
                   </div>
                 </div>
 
@@ -504,7 +539,7 @@
                   <!-- Expanded Controls -->
                   <div class="expanded-only dnd-details">
                     <p class="dnd-desc">Calls and notifications are silenced.</p>
-                    <button class="btn-action dnd-disable">Turn Off</button>
+                    <button class="btn-action dnd-disable"><span class="material-symbols-rounded">do_not_disturb_off</span> Turn Off</button>
                   </div>
                 </div>
 
@@ -522,7 +557,7 @@
                   <!-- Expanded Controls -->
                   <div class="expanded-only silent-details">
                     <p class="silent-desc">Sound is turned off. Screen will light up.</p>
-                    <button class="btn-action silent-disable accept">Switch to Ring</button>
+                    <button class="btn-action silent-disable accept"><span class="material-symbols-rounded">volume_up</span> Switch to Ring</button>
                   </div>
                 </div>
 
@@ -540,7 +575,7 @@
                   <!-- Expanded Controls -->
                   <div class="expanded-only vibrate-details">
                     <p class="vibrate-desc">Device will vibrate for calls.</p>
-                    <button class="btn-action vibrate-disable accept">Switch to Ring</button>
+                    <button class="btn-action vibrate-disable accept"><span class="material-symbols-rounded">volume_up</span> Switch to Ring</button>
                   </div>
                 </div>
 
@@ -558,7 +593,7 @@
                   <!-- Expanded Controls -->
                   <div class="expanded-only ring-details">
                     <p class="ring-desc">Alert sounds are enabled.</p>
-                    <button class="btn-action ring-disable reject">Switch to Silent</button>
+                    <button class="btn-action ring-disable reject"><span class="material-symbols-rounded">notifications_off</span> Switch to Silent</button>
                   </div>
                 </div>
 

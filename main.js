@@ -280,29 +280,95 @@ controlTabs.forEach((tab, index) => {
   });
 });
 
-// Click listener on the capsule itself (Toggles expanded state for active content)
+// Click listener on the capsule itself (Toggles expanded state for active content & idle notch)
 capsule.addEventListener('click', (e) => {
   // If clicked a button inside, let its own event handle it
-  if (e.target.closest('button') || e.target.closest('.btn-action')) {
+  if (e.target.closest('button') || e.target.closest('.btn-action') || e.target.closest('.hub-tile-btn')) {
     return;
   }
   
-  if (activeState === 'idle') {
-    // Idle state doesn't expand, just shows a slight spring pulse effect
-    capsule.style.transform = 'scale(0.95)';
-    setTimeout(() => {
-      capsule.style.transform = 'none';
-    }, 150);
+  // Toggle expanded card view
+  capsule.classList.toggle('expanded');
+  
+  // Hide status bar when expanded to prevent overlap, show when collapsed
+  if (capsule.classList.contains('expanded')) {
+    statusBar?.classList.add('hidden');
   } else {
-    // Toggle expanded card view
-    capsule.classList.toggle('expanded');
-    
-    // Hide status bar when expanded to prevent overlap, show when collapsed
-    if (capsule.classList.contains('expanded')) {
-      statusBar?.classList.add('hidden');
-    } else {
-      statusBar?.classList.remove('hidden');
-    }
+    statusBar?.classList.remove('hidden');
+  }
+});
+
+// Quick Hub Tile Controls (Interactive when Idle capsule is expanded)
+const hubTorch = document.querySelector('.hub-torch');
+const hubWifi = document.querySelector('.hub-wifi');
+const hubSound = document.querySelector('.hub-sound');
+const hubTimer = document.querySelector('.hub-timer');
+const hubShot = document.querySelector('.hub-shot');
+
+let isTorchOn = false;
+hubTorch?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  isTorchOn = !isTorchOn;
+  hubTorch.classList.toggle('active', isTorchOn);
+  const icon = hubTorch.querySelector('.material-symbols-rounded');
+  if (icon) icon.textContent = isTorchOn ? 'flashlight_on' : 'flashlight_off';
+});
+
+let isWifiOn = true;
+hubWifi?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  isWifiOn = !isWifiOn;
+  hubWifi.classList.toggle('active', isWifiOn);
+  const wifiStatusIcon = document.querySelector('.status-icon-wifi');
+  if (wifiStatusIcon) {
+    wifiStatusIcon.style.display = isWifiOn ? 'inline-flex' : 'none';
+  }
+});
+
+const soundModes = [
+  { mode: 'Sound', icon: 'volume_up' },
+  { mode: 'Vibrate', icon: 'vibration' },
+  { mode: 'Silent', icon: 'notifications_off' }
+];
+let currentSoundModeIdx = 0;
+hubSound?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  currentSoundModeIdx = (currentSoundModeIdx + 1) % soundModes.length;
+  const current = soundModes[currentSoundModeIdx];
+  const icon = hubSound.querySelector('.material-symbols-rounded');
+  const label = hubSound.querySelector('.sound-mode-label');
+  if (icon) icon.textContent = current.icon;
+  if (label) label.textContent = current.mode;
+  hubSound.classList.toggle('active', current.mode !== 'Silent');
+});
+
+hubTimer?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  // Transition directly to timer state and expand it
+  transitionCapsuleState('timer');
+  setTimeout(() => {
+    capsule.classList.add('expanded');
+    statusBar?.classList.add('hidden');
+  }, 150);
+});
+
+hubShot?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const screen = document.querySelector('.device-screen');
+  if (screen) {
+    const flash = document.createElement('div');
+    flash.style.position = 'absolute';
+    flash.style.inset = '0';
+    flash.style.backgroundColor = '#ffffff';
+    flash.style.zIndex = '999';
+    flash.style.opacity = '0.85';
+    flash.style.transition = 'opacity 0.4s ease-out';
+    flash.style.pointerEvents = 'none';
+    screen.appendChild(flash);
+    requestAnimationFrame(() => {
+      flash.style.opacity = '0';
+      setTimeout(() => flash.remove(), 400);
+    });
   }
 });
 

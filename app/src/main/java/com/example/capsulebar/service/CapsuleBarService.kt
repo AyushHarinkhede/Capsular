@@ -294,7 +294,14 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     }
 
     private val preferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" || key == "is_calibration_mode" || key == "is_position_locked" || key == "camera_position" || key == "camera_width_dp" || key == "show_as_notch" || key == "split_position" || key == "edge_rounding_percent" || key == "max_popup_width_percent" || key == "is_glass_effect_enabled" || key == "glass_blur_radius" || key == "glass_edge_transparency" || key == "glass_effect_area") {
+        if (key == "x_offset" || key == "y_offset" || key == "width_dp" || key == "height_dp" ||
+            key == "is_calibration_mode" || key == "is_position_locked" || key == "camera_position" ||
+            key == "camera_width_dp" || key == "show_as_notch" || key == "split_position" ||
+            key == "edge_rounding_percent" || key == "max_popup_width_percent" ||
+            key == "is_glass_effect_enabled" || key == "glass_blur_radius" ||
+            key == "glass_edge_transparency" || key == "glass_effect_area" ||
+            key == "show_in_landscape" || key == "show_always" || key == "show_on_lockscreen"
+        ) {
             updateLayoutParams()
         }
     }
@@ -479,20 +486,21 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     private var hideJob: kotlinx.coroutines.Job? = null
 
-    private fun updateLayoutParams(uiState: CapsuleUiState? = null) {
+    private fun updateLayoutParams(uiState: CapsuleUiState? = null, overrideOrientation: Int? = null) {
         val view = composeView ?: return
         val state = uiState ?: CapsuleStateManager.uiState.value
         val isCalibrating = settings.isCalibrationMode
         val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
         val isLocked = keyguardManager.isKeyguardLocked
         
-        val orientation = resources.configuration.orientation
+        val orientation = overrideOrientation ?: resources.configuration.orientation
         val isLandscape = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         
+        val isLandscapeBlocked = !isCalibrating && isLandscape && !settings.showInLandscape
         val shouldBeHidden = !isCalibrating && (
             (state.isHidden && !settings.showAlways) ||
             (isLocked && !settings.showOnLockscreen) ||
-            (isLandscape && !settings.showInLandscape)
+            isLandscapeBlocked
         )
 
         val density = resources.displayMetrics.density
@@ -503,6 +511,27 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                     WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
                     WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+
+            // If user disabled landscape, immediately collapse to 1x1 and hide view
+            if (isLandscapeBlocked) {
+                hideJob?.cancel()
+                hideJob = null
+                params.width = 1
+                params.height = 1
+                params.x = 0
+                params.y = 0
+                params.gravity = Gravity.TOP or Gravity.START
+                view.visibility = View.GONE
+                try {
+                    if (view.isAttachedToWindow) {
+                        windowManager.updateViewLayout(view, params)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                return
+            }
+
             try {
                 if (view.isAttachedToWindow) {
                     windowManager.updateViewLayout(view, params)
@@ -516,9 +545,12 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                 // Wait 450ms so fluid dynamic island bounce-back into punch-hole notch completes
                 kotlinx.coroutines.delay(450L)
                 val currentState = CapsuleStateManager.uiState.value
+                val currentOrientation = resources.configuration.orientation
+                val currentIsLandscape = currentOrientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
                 val stillHidden = !settings.isCalibrationMode && (
                     (currentState.isHidden && !settings.showAlways) ||
-                    (keyguardManager.isKeyguardLocked && !settings.showOnLockscreen)
+                    (keyguardManager.isKeyguardLocked && !settings.showOnLockscreen) ||
+                    (currentIsLandscape && !settings.showInLandscape)
                 )
                 if (stillHidden && view.isAttachedToWindow) {
                     params.width = 1
@@ -526,6 +558,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     params.x = 0
                     params.y = 0
                     params.gravity = Gravity.TOP or Gravity.START
+                    view.visibility = View.GONE
                     try {
                         windowManager.updateViewLayout(view, params)
                     } catch (e: Exception) {
@@ -536,6 +569,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         } else {
             hideJob?.cancel()
             hideJob = null
+            view.visibility = View.VISIBLE
 
             val isExpanded = state.displayMode == DisplayMode.EXPANDED
             params.width = WindowManager.LayoutParams.MATCH_PARENT
@@ -677,7 +711,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        updateLayoutParams()
+        updateLayoutParams(overrideOrientation = newConfig.orientation)
     }
 
     private var visualizer: Visualizer? = null

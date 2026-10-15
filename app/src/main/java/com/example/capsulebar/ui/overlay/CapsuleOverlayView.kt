@@ -165,6 +165,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     var glassBlurRadius by remember { mutableStateOf(settings.glassBlurRadius) }
     var glassEdgeTransparency by remember { mutableStateOf(settings.glassEdgeTransparency) }
     var glassEffectArea by remember { mutableStateOf(settings.glassEffectArea) }
+    var showInLandscape by remember { mutableStateOf(settings.showInLandscape) }
 
     DisposableEffect(settings) {
         val prefs = context.getSharedPreferences("capsule_settings", Context.MODE_PRIVATE)
@@ -202,6 +203,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 "glass_blur_radius" -> glassBlurRadius = settings.glassBlurRadius
                 "glass_edge_transparency" -> glassEdgeTransparency = settings.glassEdgeTransparency
                 "glass_effect_area" -> glassEffectArea = settings.glassEffectArea
+                "show_in_landscape" -> showInLandscape = settings.showInLandscape
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -223,6 +225,12 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
             showAsNotch = showAsNotch,
             isPositionLocked = isPositionLocked
         )
+        return
+    }
+
+    val orientation = LocalConfiguration.current.orientation
+    val isLandscape = orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    if (isLandscape && !showInLandscape) {
         return
     }
 
@@ -300,7 +308,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         DisplayMode.HIDDEN    -> collapsedRadiusDp
     }
 
-    val isVisible = (!uiState.isHidden && uiState.mainEvent != null) || showAlways
+    val isVisible = (!isLandscape || showInLandscape) && ((!uiState.isHidden && uiState.mainEvent != null) || showAlways)
 
     val leftWidth by animateFloatAsState(
         targetValue = if (!isVisible && !showAlways) idlePunchHoleWidth else leftWidthTarget,
@@ -4318,9 +4326,9 @@ private fun CallExpandedCard(event: CapsuleEvent.Call) {
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.weight(1f).height(42.dp)
                 ) {
-                    Icon(Icons.Rounded.Call, null, tint = Color.Black)
+                    Icon(Icons.Rounded.Call, null, tint = Color.White)
                     Spacer(Modifier.width(8.dp))
-                    Text("Accept", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Accept", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
                 Button(
                     onClick = {
@@ -4334,9 +4342,9 @@ private fun CallExpandedCard(event: CapsuleEvent.Call) {
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.weight(1f).height(42.dp)
                 ) {
-                    Icon(Icons.Rounded.CallEnd, null, tint = Color.Black)
+                    Icon(Icons.Rounded.CallEnd, null, tint = Color.White)
                     Spacer(Modifier.width(8.dp))
-                    Text("Decline", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    Text("Decline", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 }
             }
         } else {
@@ -4415,7 +4423,7 @@ private fun CallExpandedCard(event: CapsuleEvent.Call) {
                         .size(38.dp)
                         .background(Color(0xFFC62828), CircleShape)
                 ) {
-                    Icon(Icons.Rounded.Call, null, tint = Color.Black, modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = 135f))
+                    Icon(Icons.Rounded.Call, null, tint = Color.White, modifier = Modifier.size(20.dp).graphicsLayer(rotationZ = 135f))
                 }
             }
         }
@@ -5445,11 +5453,11 @@ private fun AlarmExpandedCard(event: CapsuleEvent.Alarm) {
                     com.example.capsulebar.service.CapsuleNotificationListener.triggerNotificationAction(event.id, "dismiss")
                     CapsuleStateManager.removeEvent(event.id)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373)),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828)),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.weight(1f).height(44.dp)
             ) {
-                Text("Dismiss", color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text("Dismiss", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
     }
