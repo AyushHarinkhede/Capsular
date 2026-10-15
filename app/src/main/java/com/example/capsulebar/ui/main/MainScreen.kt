@@ -179,6 +179,7 @@ fun MainScreen(
     val glassBlurRadius by viewModel.glassBlurRadius.collectAsStateWithLifecycle()
     val glassEdgeTransparency by viewModel.glassEdgeTransparency.collectAsStateWithLifecycle()
     val glassEffectArea by viewModel.glassEffectArea.collectAsStateWithLifecycle()
+    val glassBlackTint by viewModel.glassBlackTint.collectAsStateWithLifecycle()
 
     val isDarkEffective = when (themeMode) {
         "light" -> false
@@ -405,10 +406,12 @@ fun MainScreen(
                 glassBlurRadius = glassBlurRadius,
                 glassEdgeTransparency = glassEdgeTransparency,
                 glassEffectArea = glassEffectArea,
+                glassBlackTint = glassBlackTint,
                 onToggleGlassEffect = { viewModel.toggleGlassEffect(it) },
                 onGlassBlurRadiusChanged = { viewModel.updateGlassBlurRadius(it) },
                 onGlassEdgeTransparencyChanged = { viewModel.updateGlassEdgeTransparency(it) },
-                onGlassEffectAreaChanged = { viewModel.updateGlassEffectArea(it) }
+                onGlassEffectAreaChanged = { viewModel.updateGlassEffectArea(it) },
+                onGlassBlackTintChanged = { viewModel.updateGlassBlackTint(it) }
             )
         }
 
@@ -1862,10 +1865,12 @@ fun AppearanceSection(
     glassBlurRadius: Int,
     glassEdgeTransparency: Int,
     glassEffectArea: Int,
+    glassBlackTint: Int,
     onToggleGlassEffect: (Boolean) -> Unit,
     onGlassBlurRadiusChanged: (Int) -> Unit,
     onGlassEdgeTransparencyChanged: (Int) -> Unit,
-    onGlassEffectAreaChanged: (Int) -> Unit
+    onGlassEffectAreaChanged: (Int) -> Unit,
+    onGlassBlackTintChanged: (Int) -> Unit
 ) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(
@@ -2090,11 +2095,11 @@ fun AppearanceSection(
                 exit = shrinkVertically() + fadeOut()
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    // Live interactive preview of the glass effect
+                    // Live interactive preview of the glass effect (Notch center to transparent edges)
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(68.dp)
+                            .height(84.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(
                                 Brush.linearGradient(
@@ -2108,78 +2113,81 @@ fun AppearanceSection(
                             .padding(8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        val previewBaseColor = Color(defaultColor)
-                        val previewEdgeAlpha = ((100 - glassEdgeTransparency) / 100f).coerceIn(0.12f, 0.95f)
-                        val previewMidAlpha = (1.0f - (glassEdgeTransparency * 0.45f / 100f)).coerceIn(previewEdgeAlpha, 1.0f)
+                        val previewBlackTintFactor = (glassBlackTint / 100f).coerceIn(0.15f, 1.0f)
+                        val previewTransparency = (glassEdgeTransparency / 100f).coerceIn(0.10f, 0.95f)
                         val previewAreaRatio = (glassEffectArea / 100f).coerceIn(0.15f, 0.90f)
+
+                        val previewEdgeAlpha = ((1.0f - previewTransparency) * previewBlackTintFactor).coerceIn(0.08f, 0.90f)
+                        val previewMidAlpha = ((1.0f - (previewTransparency * 0.45f)) * (0.85f + 0.15f * previewBlackTintFactor)).coerceIn(previewEdgeAlpha, 0.98f)
+                        val previewCenterAlpha = (0.92f + 0.08f * previewBlackTintFactor).coerceIn(0.85f, 1.0f)
 
                         Box(
                             modifier = Modifier
-                                .width(140.dp)
-                                .height(36.dp)
+                                .width(180.dp)
+                                .height(46.dp)
                                 .drawBehind {
                                     val notchX = size.width * 0.5f
                                     val notchY = 0f
                                     val maxDim = kotlin.math.hypot(size.width, size.height)
                                     val radius = (maxDim * (1.25f - previewAreaRatio * 0.55f)).coerceAtLeast(20f)
 
-                                    val stop1 = (0.28f * (1.1f - previewAreaRatio)).coerceIn(0.06f, 0.42f)
-                                    val stop2 = (stop1 + (1.0f - stop1) * 0.48f).coerceIn(stop1 + 0.1f, 0.85f)
+                                    val stop1 = (0.26f * (1.1f - previewAreaRatio)).coerceIn(0.06f, 0.40f)
+                                    val stop2 = (stop1 + (1.0f - stop1) * 0.50f).coerceIn(stop1 + 0.12f, 0.85f)
 
                                     drawRoundRect(
                                         brush = Brush.radialGradient(
                                             colorStops = arrayOf(
-                                                0.0f to Color.Black,
-                                                stop1 to if (previewBaseColor == Color.Black) Color.Black else previewBaseColor.copy(alpha = 0.98f),
-                                                stop2 to previewBaseColor.copy(alpha = previewMidAlpha),
-                                                1.0f to previewBaseColor.copy(alpha = previewEdgeAlpha)
+                                                0.0f to Color.Black.copy(alpha = previewCenterAlpha),
+                                                stop1 to Color(0xFF0D0D11).copy(alpha = (previewCenterAlpha * 0.96f)),
+                                                stop2 to Color(0xFF16161D).copy(alpha = previewMidAlpha),
+                                                1.0f to Color(0xFF202028).copy(alpha = previewEdgeAlpha)
                                             ),
                                             center = androidx.compose.ui.geometry.Offset(notchX, notchY),
                                             radius = radius
                                         ),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx(), 18.dp.toPx())
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(22.dp.toPx(), 22.dp.toPx())
                                     )
                                     drawRoundRect(
                                         brush = Brush.verticalGradient(
                                             listOf(
-                                                Color.White.copy(alpha = 0.20f),
+                                                Color.White.copy(alpha = 0.22f),
                                                 Color.White.copy(alpha = 0.04f),
                                                 Color.Transparent
                                             )
                                         ),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx(), 18.dp.toPx())
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(22.dp.toPx(), 22.dp.toPx())
                                     )
                                     drawRoundRect(
                                         brush = Brush.verticalGradient(
                                             listOf(
-                                                Color.White.copy(alpha = 0.40f),
-                                                Color.White.copy(alpha = 0.12f),
-                                                Color.Black.copy(alpha = 0.30f)
+                                                Color.White.copy(alpha = 0.42f),
+                                                Color.White.copy(alpha = 0.14f),
+                                                Color.White.copy(alpha = 0.06f)
                                             )
                                         ),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx(), 18.dp.toPx()),
+                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(22.dp.toPx(), 22.dp.toPx()),
                                         style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
                                     )
                                 }
-                                .clip(RoundedCornerShape(18.dp)),
+                                .clip(RoundedCornerShape(22.dp)),
                             contentAlignment = Alignment.Center
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(10.dp)
+                                        .size(12.dp)
                                         .clip(CircleShape)
                                         .background(Color.Black)
                                         .border(0.5.dp, Color(0x44FFFFFF), CircleShape)
                                 )
                                 Text(
-                                    "Glass Effect",
-                                    color = Color.White.copy(alpha = 0.9f),
+                                    "Glass Notch Preview",
+                                    color = Color.White.copy(alpha = 0.92f),
                                     fontSize = 11.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.SemiBold
                                 )
                             }
                         }
@@ -2199,19 +2207,31 @@ fun AppearanceSection(
 
                     // Slider 2: Transparency
                     SliderOptionRow(
-                        title = "Edge Transparency",
+                        title = "Glass Edge Transparency",
                         valueText = "${glassEdgeTransparency}%",
                         value = glassEdgeTransparency.toFloat(),
                         onValueChange = { onGlassEdgeTransparencyChanged(it.toInt()) },
-                        valueRange = 10f..90f,
+                        valueRange = 10f..95f,
                         decreaseIcon = Icons.Rounded.Remove,
                         increaseIcon = Icons.Rounded.Add,
                         step = 1f
                     )
 
-                    // Slider 3: Area / Spread
+                    // Slider 3: Black Tone / Darkness
                     SliderOptionRow(
-                        title = "Glass Effect Area (Spread)",
+                        title = "Black Tint Darkness (Notch Disguise)",
+                        valueText = "${glassBlackTint}%",
+                        value = glassBlackTint.toFloat(),
+                        onValueChange = { onGlassBlackTintChanged(it.toInt()) },
+                        valueRange = 10f..100f,
+                        decreaseIcon = Icons.Rounded.Remove,
+                        increaseIcon = Icons.Rounded.Add,
+                        step = 1f
+                    )
+
+                    // Slider 4: Notch to Edge Spread
+                    SliderOptionRow(
+                        title = "Notch Gradient Spread (Notch to Edge)",
                         valueText = "${glassEffectArea}%",
                         value = glassEffectArea.toFloat(),
                         onValueChange = { onGlassEffectAreaChanged(it.toInt()) },

@@ -299,7 +299,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             key == "camera_width_dp" || key == "show_as_notch" || key == "split_position" ||
             key == "edge_rounding_percent" || key == "max_popup_width_percent" ||
             key == "is_glass_effect_enabled" || key == "glass_blur_radius" ||
-            key == "glass_edge_transparency" || key == "glass_effect_area" ||
+            key == "glass_edge_transparency" || key == "glass_effect_area" || key == "glass_black_tint" ||
             key == "show_in_landscape" || key == "show_always" || key == "show_on_lockscreen"
         ) {
             updateLayoutParams()
@@ -609,7 +609,7 @@ class CapsuleBarService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (settings.isGlassEffectEnabled && settings.glassBlurRadius > 0) {
+                if (isExpanded && settings.isGlassEffectEnabled && settings.glassBlurRadius > 0) {
                     params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
                     params.blurBehindRadius = (settings.glassBlurRadius * density).toInt()
                 } else {

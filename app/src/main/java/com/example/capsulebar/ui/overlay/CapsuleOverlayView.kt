@@ -165,6 +165,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
     var glassBlurRadius by remember { mutableStateOf(settings.glassBlurRadius) }
     var glassEdgeTransparency by remember { mutableStateOf(settings.glassEdgeTransparency) }
     var glassEffectArea by remember { mutableStateOf(settings.glassEffectArea) }
+    var glassBlackTint by remember { mutableStateOf(settings.glassBlackTint) }
     var showInLandscape by remember { mutableStateOf(settings.showInLandscape) }
 
     DisposableEffect(settings) {
@@ -203,6 +204,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 "glass_blur_radius" -> glassBlurRadius = settings.glassBlurRadius
                 "glass_edge_transparency" -> glassEdgeTransparency = settings.glassEdgeTransparency
                 "glass_effect_area" -> glassEffectArea = settings.glassEffectArea
+                "glass_black_tint" -> glassBlackTint = settings.glassBlackTint
                 "show_in_landscape" -> showInLandscape = settings.showInLandscape
             }
         }
@@ -516,40 +518,8 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                         alpha = capsuleAlpha
                     }
                     .clip(CircleShape)
-                    .then(
-                        if (isGlassEffectEnabled) {
-                            val edgeAlpha = ((100 - glassEdgeTransparency) / 100f).coerceIn(0.12f, 0.95f)
-                            val midAlpha = (1.0f - (glassEdgeTransparency * 0.45f / 100f)).coerceIn(edgeAlpha, 1.0f)
-                            Modifier.drawBehind {
-                                val radius = size.width * 0.85f
-                                drawCircle(
-                                    brush = Brush.radialGradient(
-                                        colorStops = arrayOf(
-                                            0.0f to if (splitBaseColor == Color.Black) Color.Black else splitBaseColor.copy(alpha = 0.95f),
-                                            0.55f to splitBaseColor.copy(alpha = midAlpha),
-                                            1.0f to splitBaseColor.copy(alpha = edgeAlpha)
-                                        ),
-                                        center = Offset(size.width * 0.5f, 0f),
-                                        radius = radius
-                                    )
-                                )
-                                drawCircle(
-                                    brush = Brush.verticalGradient(
-                                        listOf(
-                                            Color.White.copy(alpha = 0.35f),
-                                            Color.White.copy(alpha = 0.08f),
-                                            Color.Black.copy(alpha = 0.25f)
-                                        )
-                                    ),
-                                    style = Stroke(width = 1.dp.toPx())
-                                )
-                            }
-                        } else {
-                            Modifier
-                                .background(splitBaseColor)
-                                .border(1.dp, Color(0x33FFFFFF), CircleShape)
-                        }
-                    )
+                    .background(Color.Black)
+                    .border(0.8.dp, Color(0x33FFFFFF), CircleShape)
                     .clickable {
                         com.example.capsulebar.service.HapticSoundManager.playExpand()
                         CapsuleStateManager.swapMainAndSplit(expandAfterSwap = true)
@@ -561,11 +531,12 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
         }
 
         // ── MAIN PILL ──
+        val isExpanded = uiState.displayMode == DisplayMode.EXPANDED
         val notchRelativeXRatio = if (leftWidth > 0f) {
             ((cameraCenterXDp - pillLeftDp) / leftWidth).coerceIn(0.05f, 0.95f)
         } else 0.5f
 
-        val activeBaseColor = if (uiState.displayMode == DisplayMode.EXPANDED) {
+        val activeBaseColor = if (isExpanded) {
             Color(0xEE111111)
         } else {
             getCapsuleColor(uiState.mainEvent, defaultColor, autoColor, useAppColors, context)
@@ -584,27 +555,43 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                 }
                 .drawBehind {
                     val radiusPx = leftRadius.dp.toPx()
-                    if (isGlassEffectEnabled) {
-                        val edgeAlpha = ((100 - glassEdgeTransparency) / 100f).coerceIn(0.12f, 0.95f)
-                        val midAlpha = (1.0f - (glassEdgeTransparency * 0.45f / 100f)).coerceIn(edgeAlpha, 1.0f)
+                    if (!isExpanded) {
+                        // Chhota capsule PURA SOLID BLACK hona (pure notch disguise)
+                        drawRoundRect(
+                            color = Color.Black,
+                            cornerRadius = CornerRadius(radiusPx, radiusPx)
+                        )
+                        drawRoundRect(
+                            color = Color(0x22FFFFFF),
+                            cornerRadius = CornerRadius(radiusPx, radiusPx),
+                            style = Stroke(width = 0.8.dp.toPx())
+                        )
+                    } else if (isGlassEffectEnabled) {
+                        // Bada open capsule: Frosted glass with notch radial dark-to-translucent gradient
+                        val blackTintFactor = (glassBlackTint / 100f).coerceIn(0.15f, 1.0f)
+                        val transparencyFactor = (glassEdgeTransparency / 100f).coerceIn(0.10f, 0.95f)
                         val areaRatio = (glassEffectArea / 100f).coerceIn(0.15f, 0.90f)
+
+                        val edgeAlpha = ((1.0f - transparencyFactor) * blackTintFactor).coerceIn(0.08f, 0.90f)
+                        val midAlpha = ((1.0f - (transparencyFactor * 0.45f)) * (0.85f + 0.15f * blackTintFactor)).coerceIn(edgeAlpha, 0.98f)
+                        val notchCenterAlpha = (0.92f + 0.08f * blackTintFactor).coerceIn(0.85f, 1.0f)
 
                         val notchX = size.width * notchRelativeXRatio
                         val notchY = 0f
                         val maxDim = kotlin.math.hypot(size.width, size.height)
                         val gradRadius = (maxDim * (1.25f - areaRatio * 0.55f)).coerceAtLeast(30f)
 
-                        val stop1 = (0.28f * (1.1f - areaRatio)).coerceIn(0.06f, 0.42f)
-                        val stop2 = (stop1 + (1.0f - stop1) * 0.48f).coerceIn(stop1 + 0.1f, 0.85f)
+                        val stop1 = (0.26f * (1.1f - areaRatio)).coerceIn(0.06f, 0.40f)
+                        val stop2 = (stop1 + (1.0f - stop1) * 0.50f).coerceIn(stop1 + 0.12f, 0.85f)
 
-                        // 1. Radial glass gradient: pure Black directly at camera cutout -> solid transition -> translucent glass mid -> outer edge transparency
+                        // 1. Radial glass gradient: notch ke side taraf capsule me halka dark, bahar edge tak halka transparent blur
                         drawRoundRect(
                             brush = Brush.radialGradient(
                                 colorStops = arrayOf(
-                                    0.0f to Color.Black,
-                                    stop1 to if (activeBaseColor == Color.Black) Color.Black else activeBaseColor.copy(alpha = 0.98f),
-                                    stop2 to activeBaseColor.copy(alpha = midAlpha),
-                                    1.0f to activeBaseColor.copy(alpha = edgeAlpha)
+                                    0.0f to Color.Black.copy(alpha = notchCenterAlpha),
+                                    stop1 to Color(0xFF0D0D11).copy(alpha = (notchCenterAlpha * 0.96f)),
+                                    stop2 to Color(0xFF16161D).copy(alpha = midAlpha),
+                                    1.0f to Color(0xFF202028).copy(alpha = edgeAlpha)
                                 ),
                                 center = Offset(notchX, notchY),
                                 radius = gradRadius
@@ -616,7 +603,7 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                         drawRoundRect(
                             brush = Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.20f),
+                                    Color.White.copy(alpha = 0.22f),
                                     Color.White.copy(alpha = 0.04f),
                                     Color.Transparent
                                 )
@@ -628,27 +615,25 @@ fun CapsuleOverlayScreen(settings: CapsuleSettings) {
                         drawRoundRect(
                             brush = Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.40f),
-                                    Color.White.copy(alpha = 0.12f),
-                                    Color.Black.copy(alpha = 0.30f)
+                                    Color.White.copy(alpha = 0.42f),
+                                    Color.White.copy(alpha = 0.14f),
+                                    Color.White.copy(alpha = 0.06f)
                                 )
                             ),
                             cornerRadius = CornerRadius(radiusPx, radiusPx),
                             style = Stroke(width = 1.dp.toPx())
                         )
                     } else {
-                        // Standard solid background
+                        // Standard solid background for expanded
                         drawRoundRect(
                             color = activeBaseColor,
                             cornerRadius = CornerRadius(radiusPx, radiusPx)
                         )
-                        if (uiState.displayMode == DisplayMode.EXPANDED) {
-                            drawRoundRect(
-                                color = Color(0x22FFFFFF),
-                                cornerRadius = CornerRadius(radiusPx, radiusPx),
-                                style = Stroke(width = 1.dp.toPx())
-                            )
-                        }
+                        drawRoundRect(
+                            color = Color(0x22FFFFFF),
+                            cornerRadius = CornerRadius(radiusPx, radiusPx),
+                            style = Stroke(width = 1.dp.toPx())
+                        )
                     }
 
                     // Special event border overlays

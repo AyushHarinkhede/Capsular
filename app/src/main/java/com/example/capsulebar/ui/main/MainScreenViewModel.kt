@@ -221,6 +221,9 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     private val _glassEffectArea = MutableStateFlow(settings.glassEffectArea)
     val glassEffectArea: StateFlow<Int> = _glassEffectArea.asStateFlow()
 
+    private val _glassBlackTint = MutableStateFlow(settings.glassBlackTint)
+    val glassBlackTint: StateFlow<Int> = _glassBlackTint.asStateFlow()
+
     private val _activeRegistrationTask = MutableStateFlow<String?>(null)
     val activeRegistrationTask: StateFlow<String?> = _activeRegistrationTask.asStateFlow()
 
@@ -304,6 +307,7 @@ class MainScreenViewModel(context: Context) : ViewModel() {
             "glass_blur_radius" -> _glassBlurRadius.value = settings.glassBlurRadius
             "glass_edge_transparency" -> _glassEdgeTransparency.value = settings.glassEdgeTransparency
             "glass_effect_area" -> _glassEffectArea.value = settings.glassEffectArea
+            "glass_black_tint" -> _glassBlackTint.value = settings.glassBlackTint
         }
     }
 
@@ -984,6 +988,11 @@ class MainScreenViewModel(context: Context) : ViewModel() {
     fun updateGlassEffectArea(value: Int) {
         settings.glassEffectArea = value
         _glassEffectArea.value = value
+    }
+
+    fun updateGlassBlackTint(value: Int) {
+        settings.glassBlackTint = value
+        _glassBlackTint.value = value
     }
 }
 

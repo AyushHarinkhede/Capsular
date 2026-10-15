@@ -280,4 +280,8 @@ class CapsuleSettings(context: Context) {
     var glassEffectArea: Int
         get() = prefs.getInt("glass_effect_area", 55)
         set(value) = prefs.edit().putInt("glass_effect_area", value).apply()
+
+    var glassBlackTint: Int
+        get() = prefs.getInt("glass_black_tint", 70)
+        set(value) = prefs.edit().putInt("glass_black_tint", value).apply()
 }
