@@ -407,6 +407,8 @@ fun MainScreen(
                 onUseAndroidMusicControlsToggle = { viewModel.toggleUseAndroidMusicControls(it) },
                 onIconOptionChanged = { viewModel.updateIconOption(it) },
                 onUploadBluetoothImage = { path -> viewModel.updateBluetoothImage(path) },
+                cameraPosition = cameraPosition,
+                onTestLiveExpand = { viewModel.testLiveExpand() },
                 isGlassEffectEnabled = isGlassEffectEnabled,
                 glassBlurRadius = glassBlurRadius,
                 glassEdgeTransparency = glassEdgeTransparency,
@@ -2302,6 +2304,8 @@ fun AppearanceSection(
     onUseAndroidMusicControlsToggle: (Boolean) -> Unit,
     onIconOptionChanged: (Int) -> Unit,
     onUploadBluetoothImage: (String?) -> Unit,
+    cameraPosition: String,
+    onTestLiveExpand: () -> Unit,
     isGlassEffectEnabled: Boolean,
     glassBlurRadius: Int,
     glassEdgeTransparency: Int,
@@ -2536,151 +2540,497 @@ fun AppearanceSection(
                 exit = shrinkVertically() + fadeOut()
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    // Live interactive preview of the glass effect (Notch center to transparent edges)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(84.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                        MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f),
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                )
-                            )
-                            .padding(8.dp),
-                        contentAlignment = Alignment.Center
+                    // ── REALISTIC LIVE NOTCH & GLASS CAPSULE SIMULATION (REPLACES DUMMY BAR) ──
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                     ) {
-                        val previewBlackTintFactor = (glassBlackTint / 100f).coerceIn(0.15f, 1.0f)
-                        val previewTransparency = (glassEdgeTransparency / 100f).coerceIn(0.10f, 0.95f)
-                        val previewAreaRatio = (glassEffectArea / 100f).coerceIn(0.15f, 0.90f)
-
-                        val previewEdgeAlpha = ((1.0f - previewTransparency) * previewBlackTintFactor).coerceIn(0.08f, 0.90f)
-                        val previewMidAlpha = ((1.0f - (previewTransparency * 0.45f)) * (0.85f + 0.15f * previewBlackTintFactor)).coerceIn(previewEdgeAlpha, 0.98f)
-                        val previewCenterAlpha = (0.92f + 0.08f * previewBlackTintFactor).coerceIn(0.85f, 1.0f)
-
-                        Box(
+                        Column(
                             modifier = Modifier
-                                .width(180.dp)
-                                .height(46.dp)
-                                .drawBehind {
-                                    val notchX = size.width * 0.5f
-                                    val notchY = 0f
-                                    val maxDim = kotlin.math.hypot(size.width, size.height)
-                                    val radius = (maxDim * (1.25f - previewAreaRatio * 0.55f)).coerceAtLeast(20f)
-
-                                    val stop1 = (0.26f * (1.1f - previewAreaRatio)).coerceIn(0.06f, 0.40f)
-                                    val stop2 = (stop1 + (1.0f - stop1) * 0.50f).coerceIn(stop1 + 0.12f, 0.85f)
-
-                                    drawRoundRect(
-                                        brush = Brush.radialGradient(
-                                            colorStops = arrayOf(
-                                                0.0f to Color.Black.copy(alpha = previewCenterAlpha),
-                                                stop1 to Color(0xFF0D0D11).copy(alpha = (previewCenterAlpha * 0.96f)),
-                                                stop2 to Color(0xFF16161D).copy(alpha = previewMidAlpha),
-                                                1.0f to Color(0xFF202028).copy(alpha = previewEdgeAlpha)
-                                            ),
-                                            center = androidx.compose.ui.geometry.Offset(notchX, notchY),
-                                            radius = radius
-                                        ),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(22.dp.toPx(), 22.dp.toPx())
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Top Row: Title + Live Test Button
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF00E676))
                                     )
-                                    drawRoundRect(
-                                        brush = Brush.verticalGradient(
-                                            listOf(
-                                                Color.White.copy(alpha = 0.22f),
-                                                Color.White.copy(alpha = 0.04f),
-                                                Color.Transparent
-                                            )
-                                        ),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(22.dp.toPx(), 22.dp.toPx())
-                                    )
-                                    drawRoundRect(
-                                        brush = Brush.verticalGradient(
-                                            listOf(
-                                                Color.White.copy(alpha = 0.42f),
-                                                Color.White.copy(alpha = 0.14f),
-                                                Color.White.copy(alpha = 0.06f)
-                                            )
-                                        ),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(22.dp.toPx(), 22.dp.toPx()),
-                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx())
+                                    Text(
+                                        text = "LIVE NOTCH GLASS PREVIEW",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        letterSpacing = 0.5.sp
                                     )
                                 }
-                                .clip(RoundedCornerShape(22.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+
+                                FilledTonalButton(
+                                    onClick = {
+                                        com.example.capsulebar.service.HapticSoundManager.playClick()
+                                        onTestLiveExpand()
+                                    },
+                                    shape = CircleShape,
+                                    colors = ButtonDefaults.filledTonalButtonColors(
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    Icon(Icons.Rounded.PlayArrow, contentDescription = null, modifier = Modifier.size(13.dp))
+                                    Spacer(Modifier.width(3.dp))
+                                    Text("Test on Screen", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            // Dynamic Telemetry Badge
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Notch: 100% Solid Black",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Edge: ${glassEdgeTransparency}% Glass • Blur: ${glassBlurRadius}dp • Tint: ${glassBlackTint}%",
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+
+                            // ── FULL PHONE DISPLAY FRAME WITH VIBRANT WALLPAPER BEHIND GLASS ──
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(175.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .border(1.2.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+                            ) {
+                                // 1. Multi-color Wallpaper Layer (Vibrant wallpaper allows user to clearly evaluate transparency & blur)
                                 Box(
                                     modifier = Modifier
-                                        .size(12.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.Black)
-                                        .border(0.5.dp, Color(0x44FFFFFF), CircleShape)
+                                        .fillMaxSize()
+                                        .drawBehind {
+                                            drawRect(
+                                                brush = Brush.linearGradient(
+                                                    listOf(
+                                                        Color(0xFF19113B),
+                                                        Color(0xFF241B54),
+                                                        Color(0xFF0F3A4A),
+                                                        Color(0xFF064E3B)
+                                                    )
+                                                )
+                                            )
+                                            drawCircle(
+                                                brush = Brush.radialGradient(
+                                                    listOf(Color(0xFFFF2A6D).copy(alpha = 0.75f), Color.Transparent),
+                                                    radius = size.width * 0.44f,
+                                                    center = androidx.compose.ui.geometry.Offset(size.width * 0.18f, size.height * 0.85f)
+                                                )
+                                            )
+                                            drawCircle(
+                                                brush = Brush.radialGradient(
+                                                    listOf(Color(0xFF05D9E8).copy(alpha = 0.70f), Color.Transparent),
+                                                    radius = size.width * 0.48f,
+                                                    center = androidx.compose.ui.geometry.Offset(size.width * 0.85f, size.height * 0.35f)
+                                                )
+                                            )
+                                            drawCircle(
+                                                brush = Brush.radialGradient(
+                                                    listOf(Color(0xFFFFB800).copy(alpha = 0.55f), Color.Transparent),
+                                                    radius = size.width * 0.36f,
+                                                    center = androidx.compose.ui.geometry.Offset(size.width * 0.55f, size.height * 0.92f)
+                                                )
+                                            )
+                                        }
                                 )
+
+                                // 2. Phone Status Bar Layer (Time, Icons)
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "9:41",
+                                        color = Color.White.copy(alpha = 0.85f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Rounded.Wifi, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Rounded.SignalCellular4Bar, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(13.dp))
+                                        Icon(Icons.Rounded.BatteryChargingFull, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(14.dp))
+                                    }
+                                }
+
+                                // 3. Camera Notch Hardware Cutout
+                                val notchHorizAlign = when (cameraPosition) {
+                                    "LEFT" -> Alignment.TopStart
+                                    "RIGHT" -> Alignment.TopEnd
+                                    else -> Alignment.TopCenter
+                                }
+                                val notchPad = when (cameraPosition) {
+                                    "LEFT" -> Modifier.padding(start = 28.dp, top = 8.dp)
+                                    "RIGHT" -> Modifier.padding(end = 28.dp, top = 8.dp)
+                                    else -> Modifier.padding(top = 8.dp)
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .then(notchPad),
+                                    contentAlignment = notchHorizAlign
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(11.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.Black)
+                                            .border(0.8.dp, Color(0xFF2E2E3A), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(3.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF1E293B))
+                                        )
+                                    }
+                                }
+
+                                // 4. THE EXPANDED GLASS CAPSULE (Emerging seamlessly from Notch)
+                                val previewBlackTintFactor = (glassBlackTint / 100f).coerceIn(0.15f, 1.0f)
+                                val previewTransparency = (glassEdgeTransparency / 100f).coerceIn(0.10f, 0.95f)
+                                val previewAreaRatio = (glassEffectArea / 100f).coerceIn(0.15f, 0.90f)
+
+                                val previewEdgeAlpha = ((1.0f - previewTransparency) * previewBlackTintFactor).coerceIn(0.08f, 0.90f)
+                                val previewMidAlpha = ((1.0f - (previewTransparency * 0.45f)) * (0.85f + 0.15f * previewBlackTintFactor)).coerceIn(previewEdgeAlpha, 0.98f)
+                                val previewCenterAlpha = (0.94f + 0.06f * previewBlackTintFactor).coerceIn(0.88f, 1.0f)
+
+                                val notchRelativeX = when (cameraPosition) {
+                                    "LEFT" -> 0.16f
+                                    "RIGHT" -> 0.84f
+                                    else -> 0.50f
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.92f)
+                                        .height(112.dp)
+                                        .align(Alignment.TopCenter)
+                                        .padding(top = 18.dp)
+                                        .clip(RoundedCornerShape(26.dp))
+                                        .drawBehind {
+                                            val notchCenterX = size.width * notchRelativeX
+                                            val notchCenterY = 0f
+                                            val maxHypot = kotlin.math.hypot(size.width, size.height)
+                                            val gradRadius = (maxHypot * (1.25f - previewAreaRatio * 0.55f)).coerceAtLeast(30f)
+
+                                            val stop1 = (0.26f * (1.1f - previewAreaRatio)).coerceIn(0.06f, 0.40f)
+                                            val stop2 = (stop1 + (1.0f - stop1) * 0.50f).coerceIn(stop1 + 0.12f, 0.85f)
+
+                                            // 1. Core Glass Gradient: Solid Pitch Black around Notch, fading into Frosted Translucent Glass at Edges
+                                            drawRoundRect(
+                                                brush = Brush.radialGradient(
+                                                    colorStops = arrayOf(
+                                                        0.0f to Color.Black.copy(alpha = previewCenterAlpha),
+                                                        stop1 to Color(0xFF0A0A0F).copy(alpha = (previewCenterAlpha * 0.97f)),
+                                                        stop2 to Color(0xFF14141E).copy(alpha = previewMidAlpha),
+                                                        1.0f to Color(0xFF1A1A26).copy(alpha = previewEdgeAlpha)
+                                                    ),
+                                                    center = androidx.compose.ui.geometry.Offset(notchCenterX, notchCenterY),
+                                                    radius = gradRadius
+                                                ),
+                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(26.dp.toPx(), 26.dp.toPx())
+                                            )
+
+                                            // 2. Specular Top Frosted Light Highlight
+                                            drawRoundRect(
+                                                brush = Brush.verticalGradient(
+                                                    listOf(
+                                                        Color.White.copy(alpha = (0.28f * (1f - previewEdgeAlpha * 0.4f)).coerceIn(0.12f, 0.38f)),
+                                                        Color.White.copy(alpha = 0.05f),
+                                                        Color.Transparent
+                                                    )
+                                                ),
+                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(26.dp.toPx(), 26.dp.toPx())
+                                            )
+
+                                            // 3. Specular Dual-Tone Glass Rim
+                                            drawRoundRect(
+                                                brush = Brush.verticalGradient(
+                                                    listOf(
+                                                        Color.White.copy(alpha = 0.48f),
+                                                        Color.White.copy(alpha = 0.16f),
+                                                        Color.White.copy(alpha = 0.08f)
+                                                    )
+                                                ),
+                                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(26.dp.toPx(), 26.dp.toPx()),
+                                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2.dp.toPx())
+                                            )
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        verticalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        // Header Row inside capsule
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(
+                                                            Brush.linearGradient(
+                                                                listOf(Color(0xFF8B5CF6), Color(0xFFEC4899))
+                                                            )
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.MusicNote,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                                Column {
+                                                    Text(
+                                                        text = "Glass Island",
+                                                        color = Color.White,
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1
+                                                    )
+                                                    Text(
+                                                        text = "Solid notch • ${glassEdgeTransparency}% transparent edge",
+                                                        color = Color.LightGray.copy(alpha = 0.9f),
+                                                        fontSize = 9.5.sp,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                            }
+
+                                            // Waveform
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(2.5.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                listOf(8, 16, 12, 20, 10).forEach { barH ->
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .width(2.5.dp)
+                                                            .height(barH.dp)
+                                                            .clip(RoundedCornerShape(1.dp))
+                                                            .background(Color(0xFF8B5CF6))
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        // Bottom playback row
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.Center,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Rounded.SkipPrevious, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(18.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.White.copy(alpha = 0.22f))
+                                                    .border(0.8.dp, Color.White.copy(alpha = 0.4f), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Icons.Rounded.Pause, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                            }
+                                            Spacer(Modifier.width(18.dp))
+                                            Icon(Icons.Rounded.SkipNext, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+
+                                // Bottom helper tag in display frame
                                 Text(
-                                    "Glass Notch Preview",
-                                    color = Color.White.copy(alpha = 0.92f),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    text = "Notch is 100% disguised in black • Background wallpaper shows through glass edges",
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 8.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(bottom = 4.dp)
                                 )
                             }
                         }
                     }
 
-                    // Slider 1: Blur
-                    SliderOptionRow(
-                        title = "Blur Intensity (Android 12+)",
-                        valueText = "${glassBlurRadius}dp",
-                        value = glassBlurRadius.toFloat(),
-                        onValueChange = { onGlassBlurRadiusChanged(it.toInt()) },
-                        valueRange = 0f..50f,
-                        decreaseIcon = Icons.Rounded.Remove,
-                        increaseIcon = Icons.Rounded.Add,
-                        step = 1f
-                    )
+                    // 1. Glass Edge Transparency Slider
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SliderOptionRow(
+                            title = "Glass Edge Transparency",
+                            valueText = "${glassEdgeTransparency}%",
+                            value = glassEdgeTransparency.toFloat(),
+                            onValueChange = { onGlassEdgeTransparencyChanged(it.toInt()) },
+                            valueRange = 10f..95f,
+                            decreaseIcon = Icons.Rounded.Remove,
+                            increaseIcon = Icons.Rounded.Add,
+                            step = 1f
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(30 to "Subtle 30%", 65 to "Frosted 65%", 85 to "High Glass 85%").forEach { (targetVal, label) ->
+                                val isSel = glassEdgeTransparency == targetVal
+                                FilterChip(
+                                    selected = isSel,
+                                    onClick = {
+                                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                                        onGlassEdgeTransparencyChanged(targetVal)
+                                    },
+                                    label = { Text(label, fontSize = 10.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
 
-                    // Slider 2: Transparency
-                    SliderOptionRow(
-                        title = "Glass Edge Transparency",
-                        valueText = "${glassEdgeTransparency}%",
-                        value = glassEdgeTransparency.toFloat(),
-                        onValueChange = { onGlassEdgeTransparencyChanged(it.toInt()) },
-                        valueRange = 10f..95f,
-                        decreaseIcon = Icons.Rounded.Remove,
-                        increaseIcon = Icons.Rounded.Add,
-                        step = 1f
-                    )
+                    // 2. Black Tone / Darkness Slider
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SliderOptionRow(
+                            title = "Black Tint Darkness (Notch Disguise)",
+                            valueText = "${glassBlackTint}%",
+                            value = glassBlackTint.toFloat(),
+                            onValueChange = { onGlassBlackTintChanged(it.toInt()) },
+                            valueRange = 10f..100f,
+                            decreaseIcon = Icons.Rounded.Remove,
+                            increaseIcon = Icons.Rounded.Add,
+                            step = 1f
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(50 to "Light 50%", 75 to "Balanced 75%", 95 to "Stealth 95%").forEach { (targetVal, label) ->
+                                val isSel = glassBlackTint == targetVal
+                                FilterChip(
+                                    selected = isSel,
+                                    onClick = {
+                                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                                        onGlassBlackTintChanged(targetVal)
+                                    },
+                                    label = { Text(label, fontSize = 10.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
 
-                    // Slider 3: Black Tone / Darkness
-                    SliderOptionRow(
-                        title = "Black Tint Darkness (Notch Disguise)",
-                        valueText = "${glassBlackTint}%",
-                        value = glassBlackTint.toFloat(),
-                        onValueChange = { onGlassBlackTintChanged(it.toInt()) },
-                        valueRange = 10f..100f,
-                        decreaseIcon = Icons.Rounded.Remove,
-                        increaseIcon = Icons.Rounded.Add,
-                        step = 1f
-                    )
+                    // 3. Blur Intensity Slider
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SliderOptionRow(
+                            title = "Blur Intensity (Android 12+)",
+                            valueText = "${glassBlurRadius}dp",
+                            value = glassBlurRadius.toFloat(),
+                            onValueChange = { onGlassBlurRadiusChanged(it.toInt()) },
+                            valueRange = 0f..50f,
+                            decreaseIcon = Icons.Rounded.Remove,
+                            increaseIcon = Icons.Rounded.Add,
+                            step = 1f
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(10 to "10dp Subtle", 25 to "25dp Frosted", 40 to "40dp Deep Blur").forEach { (targetVal, label) ->
+                                val isSel = glassBlurRadius == targetVal
+                                FilterChip(
+                                    selected = isSel,
+                                    onClick = {
+                                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                                        onGlassBlurRadiusChanged(targetVal)
+                                    },
+                                    label = { Text(label, fontSize = 10.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
 
-                    // Slider 4: Notch to Edge Spread
-                    SliderOptionRow(
-                        title = "Notch Gradient Spread (Notch to Edge)",
-                        valueText = "${glassEffectArea}%",
-                        value = glassEffectArea.toFloat(),
-                        onValueChange = { onGlassEffectAreaChanged(it.toInt()) },
-                        valueRange = 10f..90f,
-                        decreaseIcon = Icons.Rounded.Remove,
-                        increaseIcon = Icons.Rounded.Add,
-                        step = 1f
-                    )
+                    // 4. Notch Gradient Spread Slider
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        SliderOptionRow(
+                            title = "Notch Gradient Spread (Notch to Edge)",
+                            valueText = "${glassEffectArea}%",
+                            value = glassEffectArea.toFloat(),
+                            onValueChange = { onGlassEffectAreaChanged(it.toInt()) },
+                            valueRange = 10f..90f,
+                            decreaseIcon = Icons.Rounded.Remove,
+                            increaseIcon = Icons.Rounded.Add,
+                            step = 1f
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(25 to "Tight 25%", 50 to "Natural 50%", 75 to "Wide 75%").forEach { (targetVal, label) ->
+                                val isSel = glassEffectArea == targetVal
+                                FilterChip(
+                                    selected = isSel,
+                                    onClick = {
+                                        com.example.capsulebar.service.HapticSoundManager.playTick()
+                                        onGlassEffectAreaChanged(targetVal)
+                                    },
+                                    label = { Text(label, fontSize = 10.sp, fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
